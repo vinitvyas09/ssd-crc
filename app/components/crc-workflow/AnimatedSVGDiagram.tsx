@@ -92,7 +92,7 @@ export default function AnimatedSVGDiagram({
           orient="auto-start-reverse"
           markerUnits="strokeWidth"
         >
-          <path d="M 0 0 L 10 4 L 0 8 z" fill="#24d28a" />
+          <path d="M 0 0 L 10 4 L 0 8 z" fill="#00d4ff" />
         </marker>
         <marker
           id="arrowErr"
@@ -123,8 +123,55 @@ export default function AnimatedSVGDiagram({
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
         
+        {/* Animated gradient for CRC compute activities */}
+        <linearGradient id="crcComputeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <animate attributeName="x1" values="0%;100%;0%" dur="3s" repeatCount="indefinite" />
+          <stop offset="0%" stopColor="#00d4ff">
+            <animate attributeName="stop-color" values="#00d4ff;#0099ff;#00d4ff" dur="3s" repeatCount="indefinite" />
+          </stop>
+          <stop offset="50%" stopColor="#0066ff">
+            <animate attributeName="stop-color" values="#0066ff;#00d4ff;#0066ff" dur="3s" repeatCount="indefinite" />
+          </stop>
+          <stop offset="100%" stopColor="#9945ff">
+            <animate attributeName="stop-color" values="#9945ff;#0066ff;#9945ff" dur="3s" repeatCount="indefinite" />
+          </stop>
+        </linearGradient>
+        
+        {/* Host aggregation gradient */}
+        <linearGradient id="hostAggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <animate attributeName="x1" values="0%;50%;0%" dur="4s" repeatCount="indefinite" />
+          <stop offset="0%" stopColor="#59a8ff">
+            <animate attributeName="stop-color" values="#59a8ff;#70b4ff;#59a8ff" dur="2s" repeatCount="indefinite" />
+          </stop>
+          <stop offset="100%" stopColor="#22d39c">
+            <animate attributeName="stop-color" values="#22d39c;#3de5aa;#22d39c" dur="2s" repeatCount="indefinite" />
+          </stop>
+        </linearGradient>
+        
+        {/* SSD aggregation gradient */}
+        <linearGradient id="ssdAggGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <animate attributeName="x2" values="100%;200%;100%" dur="3s" repeatCount="indefinite" />
+          <stop offset="0%" stopColor="#22d39c" />
+          <stop offset="50%" stopColor="#24d28a">
+            <animate attributeName="offset" values="50%;70%;50%" dur="3s" repeatCount="indefinite" />
+          </stop>
+          <stop offset="100%" stopColor="#59ff94" />
+        </linearGradient>
+        
+        {/* Enhanced glow filter */}
         <filter id="glow">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        
+        {/* Pulse glow for active compute */}
+        <filter id="pulseGlow">
+          <feGaussianBlur stdDeviation="6" result="coloredBlur">
+            <animate attributeName="stdDeviation" values="4;8;4" dur="1.5s" repeatCount="indefinite" />
+          </feGaussianBlur>
           <feMerge>
             <feMergeNode in="coloredBlur"/>
             <feMergeNode in="SourceGraphic"/>
@@ -156,19 +203,46 @@ export default function AnimatedSVGDiagram({
               style={{ opacity: hoveredItem === `lane-${i}` ? 0.85 : 1, transition: 'opacity 0.2s' }}
             />
 
-            {/* Subtle lane tint to differentiate Host vs SSDs */}
+            {/* Subtle lane tint to differentiate Host vs SSDs with gradient */}
             {isSSD && (
-              <rect x="0" y="0" width={widthPx} height={laneH} fill="rgba(36,210,138,0.03)" />
+              <>
+                <defs>
+                  <linearGradient id={`ssdLaneGrad-${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="rgba(36,210,138,0.08)" />
+                    <stop offset="50%" stopColor="rgba(36,210,138,0.03)" />
+                    <stop offset="100%" stopColor="rgba(36,210,138,0.01)" />
+                  </linearGradient>
+                </defs>
+                <rect x="0" y="0" width={widthPx} height={laneH} fill={`url(#ssdLaneGrad-${i})`} />
+              </>
             )}
             {isHost && (
-              <rect x="0" y="0" width={widthPx} height={laneH} fill="rgba(89,168,255,0.03)" />
+              <>
+                <defs>
+                  <linearGradient id="hostLaneGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="rgba(89,168,255,0.08)" />
+                    <stop offset="50%" stopColor="rgba(89,168,255,0.03)" />
+                    <stop offset="100%" stopColor="rgba(89,168,255,0.01)" />
+                  </linearGradient>
+                </defs>
+                <rect x="0" y="0" width={widthPx} height={laneH} fill="url(#hostLaneGrad)" />
+              </>
             )}
 
-            {/* Left indicator column with solid background */}
-            <rect x="0" y="0" width="150" height={laneH} fill="#1a1f2e" />
-            <rect x="0" y="0" width="150" height={laneH} fill={isHost ? 'rgba(89,168,255,0.1)' : 'rgba(36,210,138,0.1)'} />
-            <rect x="0" y="0" width="3" height={laneH} fill={isHost ? '#59a8ff' : '#24d28a'} />
-            <line x1="150" x2="150" y1="0" y2={laneH} stroke="#4a5568" strokeWidth="1.5" />
+            {/* Left indicator column with gradient background */}
+            <defs>
+              <linearGradient id={`indicatorGrad-${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={isHost ? '#2a3f5f' : '#1a3d3a'} />
+                <stop offset="90%" stopColor={isHost ? '#1e2d42' : '#162a28'} />
+                <stop offset="100%" stopColor="#1a1f2e" />
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="150" height={laneH} fill={`url(#indicatorGrad-${i})`} />
+            <rect x="0" y="0" width="150" height={laneH} fill={isHost ? 'rgba(89,168,255,0.15)' : 'rgba(36,210,138,0.15)'} />
+            <rect x="0" y="0" width="4" height={laneH} fill={isHost ? '#59a8ff' : '#24d28a'}>
+              <animate attributeName="opacity" values="0.8;1;0.8" dur="3s" repeatCount="indefinite" />
+            </rect>
+            <line x1="150" x2="150" y1="0" y2={laneH} stroke={isHost ? '#59a8ff' : '#24d28a'} strokeWidth="1" opacity="0.3" />
 
             {/* Icon + labels */}
             <g transform="translate(14, 35)">
@@ -214,8 +288,41 @@ export default function AnimatedSVGDiagram({
           const x = scaleX(activity.t0);
           const w = Math.max(1, scaleX(activity.t1) - scaleX(activity.t0));
           const y = topPad + laneIdx * laneH + 32;
-          const h = 20;
+          const h = 24;
           const visibility = getItemVisibility(activity.t0, activity.t1);
+          
+          // Determine gradient and styling based on activity type
+          const isCRCCompute = activity.label?.includes('CRC compute');
+          const isHostAgg = activity.lane === 'host' && !activity.label?.includes('Note');
+          const isSSDAggregate = activity.label?.includes('Aggregate');
+          const isActive = visibility > 0 && visibility < 1;
+          
+          let fillColor = "var(--activity)";
+          let strokeColor = '#2a3a4d';
+          let filterEffect = '';
+          let textColor = "#cfe3ff";
+          
+          if (isCRCCompute) {
+            fillColor = isActive ? "url(#crcComputeGradient)" : "#0066ff";
+            strokeColor = isActive ? '#00d4ff' : '#0099ff';
+            filterEffect = isActive ? 'url(#pulseGlow)' : '';
+            textColor = "#ffffff";
+          } else if (isHostAgg) {
+            fillColor = isActive ? "url(#hostAggGradient)" : "#59a8ff";
+            strokeColor = isActive ? '#70b4ff' : '#59a8ff';
+            filterEffect = isActive ? 'url(#glow)' : '';
+            textColor = "#ffffff";
+          } else if (isSSDAggregate) {
+            fillColor = isActive ? "url(#ssdAggGradient)" : "#22d39c";
+            strokeColor = isActive ? '#3de5aa' : '#24d28a';
+            filterEffect = isActive ? 'url(#pulseGlow)' : '';
+            textColor = "#ffffff";
+          }
+          
+          if (hoveredItem === `activity-${idx}`) {
+            strokeColor = 'var(--accent)';
+            filterEffect = 'url(#glow)';
+          }
 
           return (
             <motion.g
@@ -233,25 +340,49 @@ export default function AnimatedSVGDiagram({
               onMouseLeave={handleMouseLeave}
               style={{ cursor: 'pointer' }}
             >
+              {/* Shadow/glow background for active compute */}
+              {isActive && (isCRCCompute || isSSDAggregate) && (
+                <motion.rect
+                  x={x - 2}
+                  y={y - 2}
+                  width={(w * visibility) + 4}
+                  height={h + 4}
+                  rx="8"
+                  ry="8"
+                  fill="none"
+                  stroke={isCRCCompute ? "#00d4ff" : "#22d39c"}
+                  strokeWidth="1"
+                  opacity="0.3"
+                  animate={{ 
+                    opacity: [0.2, 0.5, 0.2],
+                    strokeWidth: [1, 2, 1]
+                  }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+              )}
+              
               <rect
                 x={x}
                 y={y}
                 width={w * visibility}
                 height={h}
-                rx="6"
-                ry="6"
-                fill="var(--activity)"
-                stroke={hoveredItem === `activity-${idx}` ? 'var(--accent)' : '#2a3a4d'}
-                strokeWidth={hoveredItem === `activity-${idx}` ? "2" : "1"}
-                filter={hoveredItem === `activity-${idx}` ? 'url(#glow)' : ''}
+                rx="8"
+                ry="8"
+                fill={fillColor}
+                stroke={strokeColor}
+                strokeWidth={hoveredItem === `activity-${idx}` ? "2" : "1.5"}
+                filter={filterEffect}
+                opacity={isActive ? 1 : 0.9}
               />
+              
               {w > 60 && visibility > 0.5 && activity.label && (
                 <text
-                  x={x + 6}
-                  y={y + 14}
+                  x={x + 8}
+                  y={y + 15}
                   className="text-xs font-medium"
-                  fill="#cfe3ff"
+                  fill={textColor}
                   opacity={visibility}
+                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
                 >
                   {activity.label}
                 </text>
@@ -272,8 +403,8 @@ export default function AnimatedSVGDiagram({
           const x2 = scaleX(event.t1);
           const visibility = getItemVisibility(event.t0, event.t1);
           
-          const strokeColor = event.status === 'err' ? 'var(--err)' : 
-                            event.status === 'warn' ? 'var(--warn)' : 'var(--ok)';
+          const strokeColor = event.status === 'err' ? '#ff6b6b' : 
+                            event.status === 'warn' ? '#ffcc40' : '#00d4ff';
           const markerEnd = event.status === 'err' ? 'url(#arrowErr)' :
                            event.status === 'warn' ? 'url(#arrowWarn)' : 'url(#arrowOk)';
 
@@ -369,17 +500,32 @@ export default function AnimatedSVGDiagram({
 
       {/* Progress indicator */}
       {isPlaying && (
-        <motion.rect
-          x={scaleX((animationProgress / 100) * tmax) - 1}
-          y={topPad}
-          width="2"
-          height={gridH - 20}
-          fill="var(--accent)"
-          opacity="0.6"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0.3, 0.6, 0.3] }}
-          transition={{ duration: 1, repeat: Infinity }}
-        />
+        <>
+          {/* Glow effect for progress line */}
+          <motion.rect
+            x={scaleX((animationProgress / 100) * tmax) - 3}
+            y={topPad}
+            width="6"
+            height={gridH - 20}
+            fill="url(#crcComputeGradient)"
+            opacity="0.2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.1, 0.3, 0.1] }}
+            transition={{ duration: 1, repeat: Infinity }}
+            filter="url(#glow)"
+          />
+          <motion.rect
+            x={scaleX((animationProgress / 100) * tmax) - 1}
+            y={topPad}
+            width="2"
+            height={gridH - 20}
+            fill="#00d4ff"
+            opacity="0.9"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 1, repeat: Infinity }}
+          />
+        </>
       )}
 
     </svg>
