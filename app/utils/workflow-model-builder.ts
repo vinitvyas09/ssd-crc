@@ -186,9 +186,10 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     
     // Total elements to aggregate = W SSDs × segments per SSD
     const totalElems = state.W * segs;
+    // Remove verbose CRC_Combine source listing from labels for Solution 3
     const listLabel = state.showLabels 
-      ? `CRC_Combine(Src=[(CRC0_0,${segBytes}),...×${totalElems}])` 
-      : `CRC_Combine(list)`;
+      ? `Aggregation request` 
+      : ``;
     msg('host', aggId, tAggReq, tAggReq + lat, listLabel, 'ok');
     
     // Aggregation time based on total elements (each segment's CRC needs combining)
