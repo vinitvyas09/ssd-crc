@@ -1,16 +1,15 @@
 'use client';
 
 import React from 'react';
-import { WorkflowModel, WorkflowState, TooltipState } from '@/app/types/crc-workflow';
+import { WorkflowModel, TooltipState } from '@/app/types/crc-workflow';
 
 interface SVGDiagramProps {
   model: WorkflowModel;
   svgRef: React.RefObject<SVGSVGElement | null> | null;
-  state: WorkflowState;
   onTooltip: (tooltip: TooltipState) => void;
 }
 
-export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagramProps) {
+export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps) {
   const lanes = model.participants;
   const laneH = 70;
   const lifelineTop = 26;
