@@ -80,8 +80,8 @@ export const initialState: WorkflowState = {
   showLabels: true,
   randomize: false,
   dark: true,
-  lat: 15,
-  dev: 250,
+  lat: 5,
+  dev: 100,
   hostc: 40,
   aggc: 6,
 };
