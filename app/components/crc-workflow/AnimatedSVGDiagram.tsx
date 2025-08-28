@@ -460,8 +460,7 @@ export default function AnimatedSVGDiagram({
           x="240"
           y={stageMinimized ? '54' : '18'}
           className="text-[12px]"
-          fill="currentColor" style={{ color: 'var(--muted)' }}
-          style={{ cursor: 'pointer' }}
+          fill="currentColor" style={{ color: 'var(--muted)', cursor: 'pointer' }}
           onClick={() => setStageMinimized(!stageMinimized)}
         >
           {stageMinimized ? '▲' : '▼'}
