@@ -9,6 +9,7 @@ interface AnimatedSVGDiagramProps {
   svgRef: React.RefObject<SVGSVGElement | null>;
   state: WorkflowState;
   onTooltip: (e: React.MouseEvent, content: string) => void;
+  onHideTooltip?: () => void;
   isPlaying: boolean;
   onPlayComplete: () => void;
   playbackSpeed: number;
