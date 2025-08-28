@@ -6,6 +6,7 @@ import { buildWorkflowModel } from '@/app/utils/workflow-model-builder';
 import ControlPanel from '@/app/components/crc-workflow/ControlPanel';
 import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram';
 import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
+import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/EnhancedTooltip';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type ViewMode = 'single' | 'compare' | 'timeline';
@@ -16,7 +17,7 @@ export default function CRCWorkflowVisualizer() {
   const [compareSolution, setCompareSolution] = useState<SolutionType>(
     initialState.solution === 's1' ? 's2' : 's1'
   );
-  const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, x: 0, y: 0, content: '' });
+  const [tooltipData, setTooltipData] = useState<TooltipData | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('single');
@@ -275,25 +276,39 @@ export default function CRCWorkflowVisualizer() {
           font-family: 'SF Pro Display', Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
         }
         
-        .glass-panel {
+        .tooltip-content {
           background: var(--panel);
-          backdrop-filter: blur(20px);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
           border: 1px solid var(--grid);
-          color: var(--fg) !important;
+          border-radius: 12px;
+          padding: 12px 16px;
+          max-width: 320px;
+          box-shadow: 
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06),
+            0 20px 25px -5px rgba(0, 0, 0, 0.15),
+            0 10px 10px -5px rgba(0, 0, 0, 0.08);
+          color: var(--fg);
+          font-size: 13px;
+          line-height: 1.6;
         }
         
-        .glass-panel * {
-          color: inherit !important;
-        }
-        
-        .glass-panel strong {
+        .tooltip-content strong {
+          color: var(--fg);
           font-weight: 600;
+          display: block;
+          margin-bottom: 4px;
+          font-size: 14px;
         }
         
-        .glass-panel code {
+        .tooltip-content code {
+          color: var(--accent);
           font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
-          font-size: 0.9em;
-          opacity: 0.9;
+          font-size: 12px;
+          background: rgba(89, 168, 255, 0.1);
+          padding: 2px 6px;
+          border-radius: 4px;
         }
         
         .metric-glow {
