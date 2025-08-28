@@ -265,6 +265,8 @@ export default function AnimatedSVGDiagram({
           const currentX2 = x1 + (x2 - x1) * visibility;
           const currentY2 = y1 + (y2 - y1) * visibility;
 
+          const hideInlineLabel = /CRC_Calc/.test(event.label);
+
           return (
             <motion.g
               key={`msg-${idx}`}
@@ -289,7 +291,7 @@ export default function AnimatedSVGDiagram({
                 transition={{ ease: "easeInOut" }}
                 filter={hoveredItem === `msg-${idx}` ? 'url(#glow)' : ''}
               />
-              {state.showLabels && visibility > 0.5 && (
+              {state.showLabels && visibility > 0.5 && !hideInlineLabel && (
                 <motion.text
                   x={(x1 + currentX2) / 2}
                   y={(y1 + currentY2) / 2 - 6}
