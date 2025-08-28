@@ -193,17 +193,8 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
               fill="none"
               markerEnd={markerEnd}
             />
-            {state.showLabels && (
-              <text
-                x={(x1 + x2) / 2}
-                y={(y1 + y2) / 2 - 6}
-                className="text-xs"
-                fill="var(--fg)"
-                textAnchor="middle"
-              >
-                {event.label}
-              </text>
-            )}
+            {/* Intentionally hide inline event labels to avoid visual overlap with arrows.
+                Detailed content remains accessible via tooltip on hover. */}
           </g>
         );
       })}
