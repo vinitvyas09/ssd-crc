@@ -201,7 +201,7 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     const aggStages = Math.ceil(Math.log2(totalElems));
     const aggTime = Math.max(5, aggPerElem * aggStages);
     const aggActLabel = state.showLabels 
-      ? `Aggregate ${totalElems} CRCs (log2=${aggStages} stages)`
+      ? `Aggregate ${totalElems} CRCs`
       : `Aggregate ${totalElems} CRCs`;
     activity(aggId, tAggReq + lat, tAggReq + lat + aggTime, aggActLabel);
     
