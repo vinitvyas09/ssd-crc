@@ -146,15 +146,26 @@ export default function CRCWorkflowVisualizer() {
     setZoom(1);
   }, []);
 
-  // Generate mock performance data
+  // Generate deterministic mock performance data for SSR compatibility
   const performanceData = useMemo(() => {
     const points = 20;
-    return Array.from({ length: points }, (_, i) => ({
-      x: i * 5,
-      latency: Math.random() * 50 + Number(model.metrics.latency.replace(/[^0-9]/g, '')) * 0.8,
-      throughput: Math.random() * 30 + 70,
-      cpu: Math.random() * 20 + 30,
-    }));
+    const baseLatency = Number(model.metrics.latency.replace(/[^0-9]/g, '')) * 0.8;
+    
+    // Use a deterministic pattern instead of Math.random()
+    return Array.from({ length: points }, (_, i) => {
+      // Create deterministic but varied values using sine waves and index
+      const phase = (i / points) * Math.PI * 2;
+      const variation1 = Math.sin(phase) * 0.5 + 0.5; // 0-1 range
+      const variation2 = Math.sin(phase * 1.5 + 1) * 0.5 + 0.5; // 0-1 range
+      const variation3 = Math.sin(phase * 0.8 + 2) * 0.5 + 0.5; // 0-1 range
+      
+      return {
+        x: i * 5,
+        latency: variation1 * 50 + baseLatency,
+        throughput: variation2 * 30 + 70,
+        cpu: variation3 * 20 + 30,
+      };
+    });
   }, [model]);
 
   return (
@@ -401,7 +412,7 @@ export default function CRCWorkflowVisualizer() {
                   <span className="text-xs text-[var(--warn)]">▲ 12%</span>
                 </div>
                 <div className="text-2xl font-bold text-[var(--warn)]">
-                  {Math.round(Math.random() * 100 + 400)} MB/s
+                  {Math.round(performanceData[performanceData.length - 1]?.throughput * 5 + 400) || 470} MB/s
                 </div>
                 <div className="mt-2 flex items-end gap-1 h-8">
                   {[...Array(8)].map((_, i) => (
