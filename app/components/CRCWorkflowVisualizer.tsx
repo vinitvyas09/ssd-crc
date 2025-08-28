@@ -421,69 +421,178 @@ export default function CRCWorkflowVisualizer() {
                     <div className="text-2xl font-bold text-[var(--warn)]">
                       {model.metrics.throughput}
                     </div>
-                <div className="mt-2 flex items-end gap-1 h-8">
-                  {[...Array(8)].map((_, i) => {
-                    // Use deterministic height based on index
-                    const height = ((Math.sin(i * 0.8) * 0.5 + 0.5) * 80 + 20);
-                    return (
-                      <div
-                        key={i}
-                        className="flex-1 bg-[var(--warn)]"
-                        style={{
-                          height: `${height}%`,
-                          opacity: 0.3 + i * 0.1
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              </motion.div>
-
-              <motion.div
-                className="glass-panel rounded-xl p-4"
-                whileHover={{ scale: 1.02 }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Fan-out</span>
-                  <span className="text-xs text-[var(--fg)]">Optimal</span>
-                </div>
-                <div className="text-2xl font-bold">
-                  {model.metrics.fanout}
-                </div>
-                <div className="mt-2 h-2 bg-[var(--panel-2)] rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-[var(--ok)] to-[var(--accent)]"
-                    initial={{ width: 0 }}
-                    animate={{ width: '65%' }}
-                    transition={{ duration: 1, ease: 'easeOut' }}
-                  />
-                </div>
-              </motion.div>
-
-              <motion.div
-                className="glass-panel rounded-xl p-4"
-                whileHover={{ scale: 1.02 }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-[var(--muted)] uppercase tracking-wider">CPU Usage</span>
-                  <span className="text-xs text-[var(--ok)]">Low</span>
-                </div>
-                <div className="text-2xl font-bold text-[var(--ok)]">
-                  {Math.round(performanceData[performanceData.length - 1]?.cpu) || 25}%
-                </div>
-                <div className="mt-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 flex gap-1">
-                      {[...Array(10)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`flex-1 h-4 rounded-sm ${i < 3 ? 'bg-[var(--ok)]' : 'bg-[var(--panel-2)]'}`}
-                        />
-                      ))}
+                    <div className="mt-2 flex items-end gap-1 h-8">
+                      {[...Array(8)].map((_, i) => {
+                        const height = ((Math.sin(i * 0.8) * 0.5 + 0.5) * 80 + 20);
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1 bg-[var(--warn)]"
+                            style={{
+                              height: `${height}%`,
+                              opacity: 0.3 + i * 0.1
+                            }}
+                          />
+                        );
+                      })}
                     </div>
-                  </div>
-                </div>
-              </motion.div>
+                  </motion.div>
+
+                  {/* Right simulation metrics */}
+                  <motion.div
+                    className="glass-panel rounded-xl p-4"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Latency</span>
+                      <span className="text-xs px-2 py-0.5 bg-[var(--warn)] text-white rounded-full">Sol {compareSolution.slice(1)}</span>
+                    </div>
+                    <div className="text-2xl font-bold text-[var(--accent)]">
+                      {compareModel.metrics.latency}
+                    </div>
+                    <div className="mt-2 h-8">
+                      <svg className="w-full h-full">
+                        <polyline
+                          points={performanceData.slice(-10).map((d, i) => `${i * 12},${32 - d.latency / 3}`).join(' ')}
+                          fill="none"
+                          stroke="var(--warn)"
+                          strokeWidth="2"
+                          opacity="0.5"
+                        />
+                      </svg>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    className="glass-panel rounded-xl p-4"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Throughput</span>
+                      <span className="text-xs px-2 py-0.5 bg-[var(--warn)] text-white rounded-full">Sol {compareSolution.slice(1)}</span>
+                    </div>
+                    <div className="text-2xl font-bold text-[var(--warn)]">
+                      {compareModel.metrics.throughput}
+                    </div>
+                    <div className="mt-2 flex items-end gap-1 h-8">
+                      {[...Array(8)].map((_, i) => {
+                        const height = ((Math.sin((i + 3) * 0.8) * 0.5 + 0.5) * 80 + 20);
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1 bg-[var(--warn)]"
+                            style={{
+                              height: `${height}%`,
+                              opacity: 0.3 + i * 0.1
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                </>
+              ) : (
+                // Single mode: Show original 4 metrics
+                <>
+                  <motion.div
+                    className="glass-panel rounded-xl p-4 metric-glow"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Latency</span>
+                      <span className="text-xs text-[var(--ok)]">● Live</span>
+                    </div>
+                    <div className="text-2xl font-bold text-[var(--accent)]">
+                      {model.metrics.latency}
+                    </div>
+                    <div className="mt-2 h-8">
+                      <svg className="w-full h-full">
+                        <polyline
+                          points={performanceData.slice(-10).map((d, i) => `${i * 12},${32 - d.latency / 3}`).join(' ')}
+                          fill="none"
+                          stroke="var(--accent)"
+                          strokeWidth="2"
+                          opacity="0.5"
+                        />
+                      </svg>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    className="glass-panel rounded-xl p-4"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Throughput</span>
+                      <span className="text-xs text-[var(--warn)]">▲ 12%</span>
+                    </div>
+                    <div className="text-2xl font-bold text-[var(--warn)]">
+                      {model.metrics.throughput}
+                    </div>
+                    <div className="mt-2 flex items-end gap-1 h-8">
+                      {[...Array(8)].map((_, i) => {
+                        const height = ((Math.sin(i * 0.8) * 0.5 + 0.5) * 80 + 20);
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1 bg-[var(--warn)]"
+                            style={{
+                              height: `${height}%`,
+                              opacity: 0.3 + i * 0.1
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    className="glass-panel rounded-xl p-4"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Fan-out</span>
+                      <span className="text-xs text-[var(--fg)]">Optimal</span>
+                    </div>
+                    <div className="text-2xl font-bold">
+                      {model.metrics.fanout}
+                    </div>
+                    <div className="mt-2 h-2 bg-[var(--panel-2)] rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-[var(--ok)] to-[var(--accent)]"
+                        initial={{ width: 0 }}
+                        animate={{ width: '65%' }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
+                      />
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    className="glass-panel rounded-xl p-4"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">CPU Usage</span>
+                      <span className="text-xs text-[var(--ok)]">Low</span>
+                    </div>
+                    <div className="text-2xl font-bold text-[var(--ok)]">
+                      {Math.round(performanceData[performanceData.length - 1]?.cpu) || 25}%
+                    </div>
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 flex gap-1">
+                          {[...Array(10)].map((_, i) => (
+                            <div
+                              key={i}
+                              className={`flex-1 h-4 rounded-sm ${i < 3 ? 'bg-[var(--ok)]' : 'bg-[var(--panel-2)]'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
             </div>
           </motion.div>
 
