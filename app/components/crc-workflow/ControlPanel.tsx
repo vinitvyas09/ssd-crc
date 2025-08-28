@@ -354,39 +354,41 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="mt-6 space-y-1"
+        className="mt-6"
       >
-        <h2 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-3">
           Display Options
         </h2>
         
-        <ToggleSwitch
-          id="showError"
-          label="Simulate Error & Retry"
-          checked={state.showError}
-          onChange={(v) => setState({ ...state, showError: v })}
-        />
-        
-        <ToggleSwitch
-          id="labels"
-          label="Show Detailed Labels"
-          checked={state.showLabels}
-          onChange={(v) => setState({ ...state, showLabels: v })}
-        />
-        
-        <ToggleSwitch
-          id="random"
-          label="Randomize Durations"
-          checked={state.randomize}
-          onChange={(v) => setState({ ...state, randomize: v })}
-        />
-        
-        <ToggleSwitch
-          id="dark"
-          label="Dark Mode"
-          checked={state.dark}
-          onChange={(v) => setState({ ...state, dark: v })}
-        />
+        <div className="space-y-0.5 bg-[var(--panel-2)] rounded-lg p-1">
+          <ToggleSwitch
+            id="showError"
+            label="Simulate Error & Retry"
+            checked={state.showError}
+            onChange={(v) => setState({ ...state, showError: v })}
+          />
+          
+          <ToggleSwitch
+            id="labels"
+            label="Show Detailed Labels"
+            checked={state.showLabels}
+            onChange={(v) => setState({ ...state, showLabels: v })}
+          />
+          
+          <ToggleSwitch
+            id="random"
+            label="Randomize Durations"
+            checked={state.randomize}
+            onChange={(v) => setState({ ...state, randomize: v })}
+          />
+          
+          <ToggleSwitch
+            id="dark"
+            label="Dark Mode"
+            checked={state.dark}
+            onChange={(v) => setState({ ...state, dark: v })}
+          />
+        </div>
       </motion.div>
 
       {/* Legend */}
