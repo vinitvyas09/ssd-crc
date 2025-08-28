@@ -137,25 +137,25 @@ export default function AnimatedSVGDiagram({
           </stop>
         </linearGradient>
         
-        {/* Host aggregation gradient */}
+        {/* Host aggregation gradient - more subtle */}
         <linearGradient id="hostAggGradient" x1="0%" y1="0%" x2="100%" y2="100%">
           <animate attributeName="x1" values="0%;50%;0%" dur="4s" repeatCount="indefinite" />
-          <stop offset="0%" stopColor="#59a8ff">
-            <animate attributeName="stop-color" values="#59a8ff;#70b4ff;#59a8ff" dur="2s" repeatCount="indefinite" />
+          <stop offset="0%" stopColor="#6b95c7">
+            <animate attributeName="stop-color" values="#6b95c7;#7da3d1;#6b95c7" dur="2s" repeatCount="indefinite" />
           </stop>
-          <stop offset="100%" stopColor="#22d39c">
-            <animate attributeName="stop-color" values="#22d39c;#3de5aa;#22d39c" dur="2s" repeatCount="indefinite" />
+          <stop offset="100%" stopColor="#4eb89a">
+            <animate attributeName="stop-color" values="#4eb89a;#5cc2a6;#4eb89a" dur="2s" repeatCount="indefinite" />
           </stop>
         </linearGradient>
         
-        {/* SSD aggregation gradient */}
+        {/* SSD aggregation gradient - more subtle */}
         <linearGradient id="ssdAggGradient" x1="0%" y1="0%" x2="100%" y2="0%">
           <animate attributeName="x2" values="100%;200%;100%" dur="3s" repeatCount="indefinite" />
-          <stop offset="0%" stopColor="#22d39c" />
-          <stop offset="50%" stopColor="#24d28a">
+          <stop offset="0%" stopColor="#4eb89a" />
+          <stop offset="50%" stopColor="#52c2a1">
             <animate attributeName="offset" values="50%;70%;50%" dur="3s" repeatCount="indefinite" />
           </stop>
-          <stop offset="100%" stopColor="#59ff94" />
+          <stop offset="100%" stopColor="#6bd1ab" />
         </linearGradient>
         
         {/* Enhanced glow filter */}
@@ -308,13 +308,13 @@ export default function AnimatedSVGDiagram({
             filterEffect = isActive ? 'url(#pulseGlow)' : '';
             textColor = "#ffffff";
           } else if (isHostAgg) {
-            fillColor = isActive ? "url(#hostAggGradient)" : "#59a8ff";
-            strokeColor = isActive ? '#70b4ff' : '#59a8ff';
+            fillColor = isActive ? "url(#hostAggGradient)" : "#6b95c7";
+            strokeColor = isActive ? '#7da3d1' : '#6b95c7';
             filterEffect = isActive ? 'url(#glow)' : '';
             textColor = "#ffffff";
           } else if (isSSDAggregate) {
-            fillColor = isActive ? "url(#ssdAggGradient)" : "#22d39c";
-            strokeColor = isActive ? '#3de5aa' : '#24d28a';
+            fillColor = isActive ? "url(#ssdAggGradient)" : "#4eb89a";
+            strokeColor = isActive ? '#5cc2a6' : '#4eb89a';
             filterEffect = isActive ? 'url(#pulseGlow)' : '';
             textColor = "#ffffff";
           }
@@ -350,7 +350,7 @@ export default function AnimatedSVGDiagram({
                   rx="8"
                   ry="8"
                   fill="none"
-                  stroke={isCRCCompute ? "#5eb3d6" : "#22d39c"}
+                  stroke={isCRCCompute ? "#5eb3d6" : "#4eb89a"}
                   strokeWidth="1"
                   opacity="0.3"
                   animate={{ 
