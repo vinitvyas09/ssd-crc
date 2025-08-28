@@ -18,7 +18,7 @@ interface EnhancedTooltipProps {
 export default function EnhancedTooltip({ data, delay = 200 }: EnhancedTooltipProps) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>();
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
