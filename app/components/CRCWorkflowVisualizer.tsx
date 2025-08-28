@@ -23,6 +23,7 @@ export default function CRCWorkflowVisualizer() {
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dummyRef = useRef<SVGSVGElement>(null);
 
   // Apply dark/light mode with smooth transitions
   useEffect(() => {
@@ -150,7 +151,7 @@ export default function CRCWorkflowVisualizer() {
     const points = 20;
     return Array.from({ length: points }, (_, i) => ({
       x: i * 5,
-      latency: Math.random() * 50 + model.metrics.latency.replace(/[^0-9]/g, '') * 0.8,
+      latency: Math.random() * 50 + Number(model.metrics.latency.replace(/[^0-9]/g, '')) * 0.8,
       throughput: Math.random() * 30 + 70,
       cpu: Math.random() * 20 + 30,
     }));
@@ -519,7 +520,7 @@ export default function CRCWorkflowVisualizer() {
                         <div style={{ transform: 'scale(0.15)', transformOrigin: 'top left' }}>
                           <SVGDiagram 
                             model={model} 
-                            svgRef={null} 
+                            svgRef={dummyRef} 
                             state={state} 
                             onTooltip={() => {}}
                           />
@@ -558,7 +559,7 @@ export default function CRCWorkflowVisualizer() {
                       </div>
                       <AnimatedSVGDiagram 
                         model={model} 
-                        svgRef={null} 
+                        svgRef={svgRef} 
                         state={state} 
                         onTooltip={updateTooltip}
                         isPlaying={isPlaying}
@@ -585,7 +586,7 @@ export default function CRCWorkflowVisualizer() {
                       </div>
                       <AnimatedSVGDiagram 
                         model={compareModel} 
-                        svgRef={null} 
+                        svgRef={svgRef} 
                         state={compareState} 
                         onTooltip={updateTooltip}
                         isPlaying={isPlaying}
