@@ -82,7 +82,7 @@ export const initialState: WorkflowState = {
   dark: true,
   lat: 5,
   dev: 100,
-  hostc: 40,
+  hostc: 6,
   aggc: 6,
 };
 
