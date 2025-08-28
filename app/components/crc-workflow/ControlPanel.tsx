@@ -86,7 +86,7 @@ function ToggleSwitch({ id, label, checked, onChange }: {
         />
         <div className={`w-11 h-6 rounded-full transition-colors ${checked ? 'bg-[var(--accent)]' : 'bg-[var(--grid)]'}`}>
           <motion.div 
-            className="w-5 h-5 bg-white rounded-full shadow-md"
+            className="w-5 h-5 bg-[var(--bg)] rounded-full shadow-md"
             animate={{ x: checked ? 20 : 2 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
             style={{ marginTop: '2px' }}
