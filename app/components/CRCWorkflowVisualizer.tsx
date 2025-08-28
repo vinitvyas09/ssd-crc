@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { WorkflowState, TooltipState, initialState, SolutionType, SOLUTIONS } from '@/app/types/crc-workflow';
+import { WorkflowState, TooltipState, initialState, SolutionType, SOLUTIONS, ViewMode as DataViewMode } from '@/app/types/crc-workflow';
 import { buildWorkflowModel } from '@/app/utils/workflow-model-builder';
 import ControlPanel from '@/app/components/crc-workflow/ControlPanel';
 import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram';
 import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
 import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/EnhancedTooltip';
+import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type ViewMode = 'single' | 'compare' | 'timeline';
@@ -376,28 +377,51 @@ export default function CRCWorkflowVisualizer() {
               </h1>
             </div>
             
-            {/* View Mode Tabs */}
+            {/* Main View Mode Tabs */}
             <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-0.5">
-              {(['single', 'compare', 'timeline'] as ViewMode[]).map((mode) => (
-                <motion.button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  className={`view-tab ${viewMode === mode ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-2 py-1 rounded-md text-[10px] font-medium capitalize`}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {mode === 'single' && '🎯'}
-                  {mode === 'compare' && '🔄'}
-                  {mode === 'timeline' && '📊'}
-                  {' ' + mode}
-                </motion.button>
-              ))}
+              <motion.button
+                onClick={() => setState({ ...state, viewMode: 'timing' })}
+                className={`view-tab ${state.viewMode === 'timing' ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-3 py-1 rounded-md text-[11px] font-medium`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                ⏱️ Timing Analysis
+              </motion.button>
+              <motion.button
+                onClick={() => setState({ ...state, viewMode: 'distribution' })}
+                className={`view-tab ${state.viewMode === 'distribution' ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-3 py-1 rounded-md text-[11px] font-medium`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                📊 Data Distribution
+              </motion.button>
             </div>
+            
+            {/* Sub-View Mode Tabs (only for timing view) */}
+            {state.viewMode === 'timing' && (
+              <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-0.5 ml-2">
+                {(['single', 'compare', 'timeline'] as ViewMode[]).map((mode) => (
+                  <motion.button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={`view-tab ${viewMode === mode ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-2 py-1 rounded-md text-[10px] font-medium capitalize`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {mode === 'single' && '🎯'}
+                    {mode === 'compare' && '🔄'}
+                    {mode === 'timeline' && '📊'}
+                    {' ' + mode}
+                  </motion.button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Playback Controls */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-[var(--panel-2)] rounded-lg px-2 py-1">
+            {state.viewMode === 'timing' && (
+              <div className="flex items-center gap-1 bg-[var(--panel-2)] rounded-lg px-2 py-1">
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
@@ -422,6 +446,7 @@ export default function CRCWorkflowVisualizer() {
                 </select>
               </div>
             </div>
+            )}
 
             {/* Quick Actions */}
             <div className="flex items-center gap-1">
@@ -481,11 +506,12 @@ export default function CRCWorkflowVisualizer() {
         {/* Main Visualization Area */}
         <div className="flex-1 flex flex-col">
           {/* Performance Metrics Bar */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="px-4 py-3 bg-gradient-to-b from-[var(--panel)] to-transparent border-b border-[var(--grid)]"
-          >
+          {state.viewMode === 'timing' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="px-4 py-3 bg-gradient-to-b from-[var(--panel)] to-transparent border-b border-[var(--grid)]"
+            >
             <div className="grid grid-cols-4 gap-3">
               {viewMode === 'compare' ? (
                 // Compare mode: Show metrics for both simulations
@@ -698,11 +724,22 @@ export default function CRCWorkflowVisualizer() {
               )}
             </div>
           </motion.div>
+          )}
 
           {/* Visualization Area with View Modes */}
           <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-[var(--panel)] via-transparent to-[var(--panel-2)]">
             <AnimatePresence mode="wait">
-              {viewMode === 'single' && (
+              {state.viewMode === 'distribution' ? (
+                <motion.div
+                  key="distribution"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="h-full overflow-auto"
+                >
+                  <DataDistributionView state={state} />
+                </motion.div>
+              ) : viewMode === 'single' && (
                 <motion.div
                   key="single"
                   initial={{ opacity: 0, scale: 0.95 }}

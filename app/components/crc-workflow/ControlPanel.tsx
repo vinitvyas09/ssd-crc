@@ -251,6 +251,33 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
           step={1}
         />
         
+        {/* Data Distribution Parameters - only show in distribution view */}
+        {state.viewMode === 'distribution' && (
+          <>
+            <SliderInput
+              id="objectSize"
+              label="Object Size"
+              value={state.objectSizeGB}
+              onChange={(v) => setState({ ...state, objectSizeGB: v })}
+              min={1}
+              max={100}
+              step={1}
+              unit="GB"
+            />
+            
+            <SliderInput
+              id="shardSize"
+              label="Shard Size"
+              value={state.shardSizeGB}
+              onChange={(v) => setState({ ...state, shardSizeGB: v })}
+              min={0.1}
+              max={10}
+              step={0.1}
+              unit="GB"
+            />
+          </>
+        )}
+        
         <SliderInput
           id="segments"
           label="MDTS Segments"

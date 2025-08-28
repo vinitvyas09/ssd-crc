@@ -1,5 +1,6 @@
 export type SolutionType = 's1' | 's2' | 's3';
 export type MessageStatus = 'ok' | 'err' | 'warn';
+export type ViewMode = 'timing' | 'distribution';
 
 export interface Participant {
   id: string;
@@ -49,9 +50,12 @@ export interface WorkflowModel {
 
 export interface WorkflowState {
   solution: SolutionType;
+  viewMode: ViewMode;
   W: number;
   segments: number;
   chunkBytes: number;
+  shardSizeGB: number;
+  objectSizeGB: number;
   aggIndex: number;
   showError: boolean;
   showLabels: boolean;
@@ -72,9 +76,12 @@ export interface TooltipState {
 
 export const initialState: WorkflowState = {
   solution: 's2',
+  viewMode: 'timing',
   W: 6,
   segments: 1,
   chunkBytes: 4096,
+  shardSizeGB: 1,
+  objectSizeGB: 10,
   aggIndex: 0,
   showError: false,
   showLabels: true,
