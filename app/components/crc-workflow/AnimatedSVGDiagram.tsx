@@ -51,7 +51,7 @@ export default function AnimatedSVGDiagram({
     }
 
     const startTime = Date.now();
-    const duration = 5000; // 5 seconds animation
+    const duration = 5000 / playbackSpeed; // Adjust duration based on playback speed
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
@@ -66,7 +66,7 @@ export default function AnimatedSVGDiagram({
     };
     
     requestAnimationFrame(animate);
-  }, [isPlaying, onPlayComplete]);
+  }, [isPlaying, onPlayComplete, playbackSpeed]);
 
   const handleMouseEnter = (e: React.MouseEvent, content: string, id: string) => {
     onTooltip(e, content);
