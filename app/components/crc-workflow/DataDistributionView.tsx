@@ -12,19 +12,24 @@ export default function DataDistributionView({ state }: DataDistributionViewProp
   
   const calculations = useMemo(() => {
     const totalShards = Math.ceil(objectSizeGB / shardSizeGB);
-    const shardsPerSSD = Math.ceil(totalShards / W);
     const bytesPerShard = shardSizeGB * 1024 * 1024 * 1024;
     const chunksPerShard = Math.ceil(bytesPerShard / chunkBytes);
     const totalChunks = totalShards * chunksPerShard;
     const chunkSizeMB = chunkBytes / (1024 * 1024);
     
+    // Distribute shards evenly across SSDs using round-robin
+    const shardDistribution: number[][] = Array.from({ length: W }, () => []);
+    for (let i = 0; i < totalShards; i++) {
+      shardDistribution[i % W].push(i);
+    }
+    
     return {
       totalShards,
-      shardsPerSSD,
       chunksPerShard,
       totalChunks,
       chunkSizeMB,
-      bytesPerShard
+      bytesPerShard,
+      shardDistribution
     };
   }, [objectSizeGB, shardSizeGB, chunkBytes, W]);
 
@@ -80,18 +85,71 @@ export default function DataDistributionView({ state }: DataDistributionViewProp
           </div>
           
           <div className="flex-1">
-            <div className="grid grid-cols-2 gap-2">
-              {Array.from({ length: Math.min(calculations.totalShards, 8) }).map((_, i) => (
-                <div key={i} className="bg-blue-100 dark:bg-blue-900 rounded p-2 text-center">
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Shard {i + 1}</div>
-                  <div className="font-semibold">{shardSizeGB} GB</div>
-                </div>
-              ))}
-              {calculations.totalShards > 8 && (
-                <div className="col-span-2 text-center text-gray-500 dark:text-gray-400">
-                  ... and {calculations.totalShards - 8} more
-                </div>
-              )}
+            <div className="flex flex-wrap gap-1 justify-end">
+              {(() => {
+                const maxVisibleShards = 15;
+                const shardViews = [];
+                
+                if (calculations.totalShards <= maxVisibleShards) {
+                  // Show all shards
+                  for (let i = 0; i < calculations.totalShards; i++) {
+                    shardViews.push(
+                      <div 
+                        key={i} 
+                        className="bg-blue-100 dark:bg-blue-900 rounded px-2 py-1 text-center"
+                        style={{ 
+                          minWidth: `${Math.max(40, 100 / Math.sqrt(calculations.totalShards))}px`,
+                          fontSize: `${Math.max(10, 14 - calculations.totalShards / 5)}px`
+                        }}
+                      >
+                        <div className="text-xs opacity-75">S{i + 1}</div>
+                        <div className="font-semibold">{shardSizeGB}GB</div>
+                      </div>
+                    );
+                  }
+                } else {
+                  // Show first 13, ellipsis, then last shard
+                  for (let i = 0; i < 13; i++) {
+                    const scale = 1 - (i / 20);
+                    shardViews.push(
+                      <div 
+                        key={i} 
+                        className="bg-blue-100 dark:bg-blue-900 rounded px-2 py-1 text-center transition-all"
+                        style={{ 
+                          minWidth: `${40 * scale}px`,
+                          fontSize: `${Math.max(10, 14 * scale)}px`,
+                          opacity: 0.5 + scale * 0.5
+                        }}
+                      >
+                        <div className="text-xs opacity-75">S{i + 1}</div>
+                        <div className="font-semibold">{shardSizeGB}GB</div>
+                      </div>
+                    );
+                  }
+                  
+                  shardViews.push(
+                    <div key="ellipsis" className="flex items-center px-2 text-gray-500 dark:text-gray-400 font-bold">
+                      ···
+                    </div>
+                  );
+                  
+                  shardViews.push(
+                    <div 
+                      key={calculations.totalShards - 1} 
+                      className="bg-blue-100 dark:bg-blue-900 rounded px-2 py-1 text-center"
+                      style={{ minWidth: '40px', fontSize: '12px' }}
+                    >
+                      <div className="text-xs opacity-75">S{calculations.totalShards}</div>
+                      <div className="font-semibold">{shardSizeGB}GB</div>
+                    </div>
+                  );
+                }
+                
+                return shardViews;
+              })()}
+            </div>
+            <div className="text-right mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Total: {calculations.totalShards} shards × {shardSizeGB} GB = {(calculations.totalShards * shardSizeGB).toFixed(1)} GB
             </div>
           </div>
         </div>
@@ -103,9 +161,8 @@ export default function DataDistributionView({ state }: DataDistributionViewProp
         
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {Array.from({ length: W }).map((_, ssdIndex) => {
-            const startShard = ssdIndex * calculations.shardsPerSSD;
-            const endShard = Math.min(startShard + calculations.shardsPerSSD - 1, calculations.totalShards - 1);
-            const shardCount = endShard >= startShard ? endShard - startShard + 1 : 0;
+            const shards = calculations.shardDistribution[ssdIndex];
+            const shardCount = shards.length;
             
             return (
               <div key={ssdIndex} className="border-2 rounded-lg p-4" style={{ borderColor: ssdColors[ssdIndex % ssdColors.length] }}>
@@ -116,9 +173,17 @@ export default function DataDistributionView({ state }: DataDistributionViewProp
                 {shardCount > 0 ? (
                   <>
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {shardCount === 1 ? `Shard ${startShard + 1}` : `Shards ${startShard + 1}-${endShard + 1}`}
+                      {shardCount === 1 
+                        ? `Shard ${shards[0] + 1}` 
+                        : shardCount <= 3
+                        ? `Shards ${shards.map(s => s + 1).join(', ')}`
+                        : `Shards ${shards[0] + 1}, ${shards[1] + 1}... (${shardCount} total)`
+                      }
                     </div>
-                    <div className="text-lg font-bold">{shardCount * shardSizeGB} GB</div>
+                    <div className="text-lg font-bold">{(shardCount * shardSizeGB).toFixed(1)} GB</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      {(shardCount * calculations.chunksPerShard).toLocaleString()} cmds
+                    </div>
                   </>
                 ) : (
                   <div className="text-sm text-gray-400 dark:text-gray-600">No data</div>
