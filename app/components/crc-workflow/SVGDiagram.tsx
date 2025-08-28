@@ -95,31 +95,42 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
         </marker>
       </defs>
 
-      {/* Background lanes */}
-      {lanes.map((lane, i) => (
-        <g key={lane.id} transform={`translate(0,${topPad + i * laneH})`}>
-          <rect x="0" y="0" width={widthPx} height={laneH} fill="var(--lane)" />
-          <text x="14" y="22" className="text-[13px] font-semibold" fill="var(--fg)">
-            {lane.label}
-          </text>
-          <line
-            x1={leftPad - 10}
-            x2={widthPx - rightPad}
-            y1={lifelineTop}
-            y2={lifelineTop}
-            stroke="#1c2835"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1={leftPad}
-            x2={leftPad}
-            y1={lifelineTop}
-            y2={lifelineBottom}
-            stroke="#2b3a4a"
-            strokeDasharray="4 4"
-          />
-        </g>
-      ))}
+      {/* Background lanes with left indicator column */}
+      {lanes.map((lane, i) => {
+        const isSSD = lane.id.startsWith('ssd');
+        const isHost = lane.id === 'host';
+        return (
+          <g key={lane.id} transform={`translate(0,${topPad + i * laneH})`}>
+            <rect x="0" y="0" width={widthPx} height={laneH} fill="var(--lane)" />
+            {/* Left indicator */}
+            <rect x="0" y="0" width="150" height={laneH} fill={isHost ? 'rgba(89,168,255,0.06)' : 'rgba(36,210,138,0.06)'} />
+            <line x1="150" x2="150" y1="0" y2={laneH} stroke="#2b3a4a" opacity="0.35" />
+            {/* Icon and labels */}
+            <g transform="translate(14, 22)">
+              {isHost && (<text className="text-[18px]" fill="var(--accent)" x="0" y="2">🖥️</text>)}
+              {isSSD && (<text className="text-[18px]" fill="var(--ok)" x="0" y="2">💾</text>)}
+              <text x="30" y="0" className="text-[14px] font-semibold" fill="var(--fg)">{lane.label}</text>
+              <text x="30" y="16" className="text-[11px]" fill="var(--muted)">{isHost ? 'Controller' : 'Storage Device'}</text>
+            </g>
+            <line
+              x1={leftPad - 10}
+              x2={widthPx - rightPad}
+              y1={lifelineTop}
+              y2={lifelineTop}
+              stroke="#1c2835"
+              strokeDasharray="4 4"
+            />
+            <line
+              x1={leftPad}
+              x2={leftPad}
+              y1={lifelineTop}
+              y2={lifelineBottom}
+              stroke="#2b3a4a"
+              strokeDasharray="4 4"
+            />
+          </g>
+        );
+      })}
 
       {/* Activities */}
       {model.activities.map((activity, idx) => {

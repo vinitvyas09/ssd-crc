@@ -23,6 +23,8 @@ export default function AnimatedSVGDiagram({
 }: AnimatedSVGDiagramProps) {
   const [animationProgress, setAnimationProgress] = useState(0);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [currentStage, setCurrentStage] = useState<string>('Initializing');
+  const [stageMinimized, setStageMinimized] = useState(false);
   
   const lanes = model.participants;
   const laneH = 70;
@@ -87,6 +89,46 @@ export default function AnimatedSVGDiagram({
     return (itemProgress - startTime) / (endTime - startTime);
   };
 
+  // Determine current stage based on animation progress
+  useEffect(() => {
+    const progress = (animationProgress / 100) * tmax;
+    let stage = 'Initializing';
+
+    const activeActivities = model.activities.filter(a => progress >= a.t0 && progress <= a.t1);
+    const activeMessages = model.events.filter(e => progress >= e.t0 && progress <= e.t1);
+
+    if (activeActivities.length > 0) {
+      // SSD aggregation stage (s3)
+      const aggSSD = activeActivities.find(a => (a.label || '').includes('Aggregate'));
+      if (aggSSD) {
+        stage = `SSD Aggregation (${aggSSD.lane.toUpperCase()})`;
+      }
+
+      // Host aggregation stage (s2) – host activity exists with empty label after our label cleanup
+      const hostAct = activeActivities.find(a => a.lane === 'host');
+      if (hostAct && !(hostAct.label || '').includes('Note')) {
+        stage = 'Host Aggregation';
+      }
+
+      // SSD compute stage
+      const ssdAct = activeActivities.find(a => a.lane.startsWith('ssd') && /CRC compute/i.test(a.label || ''));
+      if (ssdAct) {
+        const k = ssdAct.lane.replace('ssd', '');
+        stage = `SSD${k} CRC compute`;
+      }
+    } else if (activeMessages.length > 0) {
+      const msg = activeMessages[0];
+      if (/CRC_Calc/.test(msg.label)) stage = 'Sending CRC request';
+      else if (/Completion/.test(msg.label)) stage = 'Receiving CRC result';
+      else if (/Retry/.test(msg.label)) stage = 'Retrying request';
+      else if (/CRC_Combine/.test(msg.label)) stage = 'Sending aggregation request';
+    }
+
+    if (progress >= tmax * 0.95) stage = 'Validation complete';
+
+    setCurrentStage(stage);
+  }, [animationProgress, model, tmax]);
+
   return (
     <svg
       ref={svgRef}
@@ -148,48 +190,68 @@ export default function AnimatedSVGDiagram({
       {/* Animated background grid */}
       <rect width={widthPx} height={gridH + topPad + bottomPad} fill="url(#laneGradient)" opacity="0.3" />
 
-      {/* Lanes with smooth transitions */}
-      {lanes.map((lane, i) => (
-        <motion.g 
-          key={lane.id} 
-          transform={`translate(0,${topPad + i * laneH})`}
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: i * 0.1, duration: 0.5 }}
-        >
-          <rect 
-            x="0" 
-            y="0" 
-            width={widthPx} 
-            height={laneH} 
-            fill="var(--lane)"
-            style={{ opacity: hoveredItem === `lane-${i}` ? 0.8 : 1, transition: 'opacity 0.2s' }}
-          />
-          <text x="14" y="22" className="text-[13px] font-semibold" fill="var(--fg)">
-            {lane.label}
-          </text>
-          <line
-            x1={leftPad - 10}
-            x2={widthPx - rightPad}
-            y1={lifelineTop}
-            y2={lifelineTop}
-            stroke="var(--grid)"
-            strokeDasharray="4 4"
-            opacity="0.5"
-          />
-          <motion.line
-            x1={leftPad}
-            x2={leftPad}
-            y1={lifelineTop}
-            y2={lifelineBottom}
-            stroke="var(--grid)"
-            strokeDasharray="4 4"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 1, delay: i * 0.1 }}
-          />
-        </motion.g>
-      ))}
+      {/* Lanes with left SSD/Host indicators */}
+      {lanes.map((lane, i) => {
+        const isSSD = lane.id.startsWith('ssd');
+        const isHost = lane.id === 'host';
+        return (
+          <motion.g 
+            key={lane.id} 
+            transform={`translate(0,${topPad + i * laneH})`}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.1, duration: 0.5 }}
+          >
+            {/* Full lane background */}
+            <rect 
+              x="0" 
+              y="0" 
+              width={widthPx} 
+              height={laneH} 
+              fill="var(--lane)"
+              style={{ opacity: hoveredItem === `lane-${i}` ? 0.85 : 1, transition: 'opacity 0.2s' }}
+            />
+
+            {/* Left indicator column */}
+            <rect x="0" y="0" width="150" height={laneH} fill={isHost ? 'rgba(89,168,255,0.06)' : 'rgba(36,210,138,0.06)'} />
+            <line x1="150" x2="150" y1="0" y2={laneH} stroke="var(--grid)" strokeWidth="1" opacity="0.35" />
+
+            {/* Icon + labels */}
+            <g transform="translate(14, 22)">
+              {isHost && (
+                <text className="text-[18px]" fill="var(--accent)" x="0" y="2">🖥️</text>
+              )}
+              {isSSD && (
+                <text className="text-[18px]" fill="var(--ok)" x="0" y="2">💾</text>
+              )}
+              <text x="30" y="0" className="text-[14px] font-semibold" fill="var(--fg)">{lane.label}</text>
+              <text x="30" y="16" className="text-[11px]" fill="var(--muted)">{isHost ? 'Controller' : 'Storage Device'}</text>
+            </g>
+
+            {/* Lifelines */}
+            <line
+              x1={leftPad - 10}
+              x2={widthPx - rightPad}
+              y1={lifelineTop}
+              y2={lifelineTop}
+              stroke="var(--grid)"
+              strokeDasharray="4 4"
+              opacity="0.5"
+            />
+            <motion.line
+              x1={leftPad}
+              x2={leftPad}
+              y1={lifelineTop}
+              y2={lifelineBottom}
+              stroke="var(--grid)"
+              strokeDasharray="4 4"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1, delay: i * 0.1 }}
+            />
+          </motion.g>
+        );
+      })}
 
       {/* Activities with staggered animations */}
       <AnimatePresence>
@@ -365,6 +427,53 @@ export default function AnimatedSVGDiagram({
           transition={{ duration: 1, repeat: Infinity }}
         />
       )}
+
+      {/* Stage indicator (bottom-right), minimizable */}
+      <motion.g
+        transform={`translate(${widthPx - 280}, ${gridH + topPad - 60})`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+      >
+        <rect
+          x="0"
+          y={stageMinimized ? '40' : '0'}
+          width="260"
+          height={stageMinimized ? '20' : '50'}
+          rx="8"
+          fill="rgba(0,0,0,0.75)"
+          stroke="var(--accent)"
+          strokeWidth="1"
+          opacity="0.9"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setStageMinimized(!stageMinimized)}
+        />
+        <text
+          x="240"
+          y={stageMinimized ? '54' : '18'}
+          className="text-[12px]"
+          fill="var(--muted)"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setStageMinimized(!stageMinimized)}
+        >
+          {stageMinimized ? '▲' : '▼'}
+        </text>
+        {!stageMinimized && (
+          <>
+            <text x="10" y="18" className="text-[11px] font-semibold" fill="var(--muted)">CURRENT STAGE</text>
+            <text x="10" y="36" className="text-[14px] font-medium" fill="var(--fg)">{currentStage}</text>
+            <rect x="10" y="42" width="220" height="3" rx="1.5" fill="var(--grid)" />
+            <motion.rect
+              x="10" y="42" height="3" rx="1.5" fill="var(--accent)"
+              initial={{ width: 0 }}
+              animate={{ width: 220 * (animationProgress / 100) }}
+            />
+          </>
+        )}
+        {stageMinimized && (
+          <text x="10" y="54" className="text-[12px]" fill="var(--fg)">{currentStage}</text>
+        )}
+      </motion.g>
     </svg>
   );
 }
