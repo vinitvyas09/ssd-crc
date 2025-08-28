@@ -1,0 +1,803 @@
+html = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRC Workflows — Interactive Sequence/Swimlane Visualizer</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #111821;
+    --panel-2: #0e141b;
+    --fg: #e6eef7;
+    --muted: #9fb0c4;
+    --accent: #59a8ff;
+    --ok: #24d28a;
+    --warn: #ffcc40;
+    --err: #ff6b6b;
+    --grid: #233040;
+    --lane: #1a2532;
+    --note: #2b3b51;
+    --activity: #1e2a39;
+    --shadow: rgba(0,0,0,0.25);
+  }
+  body {
+    margin: 0;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    background: var(--bg);
+    color: var(--fg);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--grid);
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent);
+  }
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  header .sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .wrap {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 16px;
+    padding: 14px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--grid);
+    border-radius: 10px;
+    box-shadow: 0 4px 14px var(--shadow);
+  }
+  .controls {
+    padding: 14px;
+    position: sticky;
+    top: 14px;
+    max-height: calc(100vh - 28px);
+    overflow: auto;
+  }
+  .controls h2 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin: 10px 0;
+  }
+  .controls .row {
+    display: grid;
+    grid-template-columns: 1fr 90px;
+    gap: 8px;
+    align-items: center;
+    margin: 10px 0;
+  }
+  .controls .row label {
+    font-size: 13px;
+    color: var(--fg);
+  }
+  .controls input[type="range"] {
+    width: 100%;
+  }
+  .controls input[type="number"],
+  .controls select {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--grid);
+    border-radius: 8px;
+    color: var(--fg);
+    font-size: 13px;
+  }
+  .controls .check {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px;
+    margin: 8px 0;
+  }
+  .controls button, .exportbar button {
+    background: var(--panel-2);
+    color: var(--fg);
+    border: 1px solid var(--grid);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .controls button:hover, .exportbar button:hover {
+    border-color: var(--accent);
+  }
+  .exportbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px dashed var(--grid);
+    background: rgba(255,255,255,0.02);
+  }
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .legend div {
+    background: var(--panel-2);
+    border: 1px solid var(--grid);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .canvas {
+    padding: 12px;
+    overflow: auto;
+  }
+  .svgwrap {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+    border-radius: 10px;
+    border: 1px solid var(--grid);
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .laneLabel {
+    font-size: 13px;
+    font-weight: 600;
+    fill: var(--fg);
+  }
+  .laneBox {
+    fill: var(--lane);
+  }
+  .lifeline {
+    stroke: #2b3a4a;
+    stroke-dasharray: 4 4;
+  }
+  .gridline {
+    stroke: #1c2835;
+    stroke-dasharray: 4 4;
+  }
+  .msg {
+    stroke-width: 2;
+    fill: none;
+  }
+  .msg.ok { stroke: var(--ok); }
+  .msg.err { stroke: var(--err); }
+  .msg.warn { stroke: var(--warn); }
+  .msg .label {
+    font-size: 12px;
+    fill: var(--fg);
+  }
+  .activity {
+    fill: var(--activity);
+    stroke: #2a3a4d;
+    stroke-width: 1;
+  }
+  .note {
+    fill: var(--note);
+    stroke: #2a3a4d;
+    stroke-width: 1;
+  }
+  .note text {
+    fill: var(--fg);
+    font-size: 12px;
+  }
+
+  .metricbar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px dashed var(--grid);
+  }
+  .metricbar .card {
+    background: var(--panel-2);
+    border: 1px solid var(--grid);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .metricbar .card strong {
+    color: var(--fg);
+    font-size: 13px;
+  }
+
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #0e1217;
+    border: 1px solid #263241;
+    color: #e8f0fa;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.35);
+    transform: translate(-50%, -120%);
+    z-index: 9999;
+    display: none;
+    max-width: 320px;
+    line-height: 1.35;
+  }
+  #tooltip code { color: #b7d4ff; }
+  footer {
+    padding: 10px 14px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>CRC validation workflows — interactive swimlane sequence</h1>
+    <div class="sub">Serial (seeded) vs Parallel + Host aggregation vs Parallel + SSD aggregation</div>
+  </div>
+  <div class="exportbar panel" style="padding:6px 10px;">
+    <button id="btnSvg">Export SVG</button>
+    <button id="btnPng">Export PNG</button>
+    <button id="btnReset">Reset</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls panel">
+    <h2>Workflow</h2>
+    <div class="row">
+      <label for="solution">Solution:</label>
+      <select id="solution">
+        <option value="s1">#1 Serial CRC with seeding</option>
+        <option value="s2">#2 Parallel CRC + Host Aggregation</option>
+        <option value="s3">#3 Parallel CRC + SSD Aggregation</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="width">Stripe width (W):</label>
+      <input id="width" type="number" min="2" max="16" step="1" value="6">
+    </div>
+    <div class="row">
+      <label for="segments">MDTS segments per extent:</label>
+      <input id="segments" type="number" min="1" max="4" step="1" value="1">
+    </div>
+    <div class="row">
+      <label for="chunk">Chunk size (bytes):</label>
+      <input id="chunk" type="number" min="512" max="134217728" step="512" value="4096">
+    </div>
+    <div class="row">
+      <label for="aggIndex">Aggregator index (k): <span id="aggIndexHint" style="color:var(--muted)"></span></label>
+      <input id="aggIndex" type="number" min="0" max="15" step="1" value="0">
+    </div>
+
+    <h2>Timing model (µs)</h2>
+    <div class="row">
+      <label for="lat">PCIe/command latency (one-way):</label>
+      <input id="lat" type="number" min="1" max="200" step="1" value="15">
+    </div>
+    <div class="row">
+      <label for="dev">SSD CRC compute (per chunk):</label>
+      <input id="dev" type="number" min="10" max="2000" step="10" value="250">
+    </div>
+    <div class="row">
+      <label for="hostc">Host combine (per stage):</label>
+      <input id="hostc" type="number" min="5" max="1000" step="5" value="40">
+    </div>
+    <div class="row">
+      <label for="aggc">SSD aggregate (per element):</label>
+      <input id="aggc" type="number" min="1" max="200" step="1" value="6">
+    </div>
+
+    <h2>Options</h2>
+    <div class="check">
+      <input id="showError" type="checkbox">
+      <label for="showError">Simulate error & retry</label>
+    </div>
+    <div class="check">
+      <input id="labels" type="checkbox" checked>
+      <label for="labels">Show seeds/lengths in labels</label>
+    </div>
+    <div class="check">
+      <input id="random" type="checkbox">
+      <label for="random">Randomize device durations</label>
+    </div>
+    <div class="check">
+      <input id="dark" type="checkbox" checked>
+      <label for="dark">Dark mode</label>
+    </div>
+
+    <div class="legend">
+      <div>➜ <strong>OK path</strong> (green)</div>
+      <div>➜ <strong>Error/Retry</strong> (red)</div>
+      <div>▮ <strong>Compute</strong> (activity bar)</div>
+      <div>▮ <strong>Note</strong> (host/internal)</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="canvas">
+      <div class="svgwrap">
+        <svg id="viz" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    </div>
+    <div class="metricbar">
+      <div class="card"><strong>Critical path latency</strong><br><span id="m-lat">–</span></div>
+      <div class="card"><strong>In-flight fan-out</strong><br><span id="m-fanout">–</span></div>
+      <div class="card"><strong>Notes</strong><br><span id="m-notes">–</span></div>
+    </div>
+    <footer>
+      Tip: hover on arrows/activities for detail. Export the drawing to SVG/PNG using the buttons above.
+    </footer>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+(function(){
+  const $ = sel => document.querySelector(sel);
+  const svg = $("#viz");
+  const tooltip = $("#tooltip");
+
+  const state = {
+    solution: 's2',
+    W: 6,
+    segments: 1,
+    chunkBytes: 4096,
+    aggIndex: 0,
+    showError: false,
+    showLabels: true,
+    randomize: false,
+    dark: true,
+    lat: 15,          // µs (one-way)
+    dev: 250,         // µs per SSD CRC
+    hostc: 40,        // µs per combine stage on host
+    aggc: 6,          // µs per element on aggregator SSD
+  };
+
+  // Wire controls
+  function bindControls(){
+    $("#solution").value = state.solution;
+    $("#width").value = state.W;
+    $("#segments").value = state.segments;
+    $("#chunk").value = state.chunkBytes;
+    $("#aggIndex").value = state.aggIndex;
+    $("#lat").value = state.lat;
+    $("#dev").value = state.dev;
+    $("#hostc").value = state.hostc;
+    $("#aggc").value = state.aggc;
+    $("#showError").checked = state.showError;
+    $("#labels").checked = state.showLabels;
+    $("#random").checked = state.randomize;
+    $("#dark").checked = state.dark;
+    $("#aggIndexHint").textContent = `(0 .. W-1)`;
+
+    $("#solution").addEventListener("change", e=>{
+      state.solution = e.target.value;
+      render();
+    });
+    $("#width").addEventListener("change", e=>{
+      state.W = clamp(parseInt(e.target.value||6,10),2,16);
+      $("#aggIndex").max = Math.max(0, state.W-1);
+      render();
+    });
+    $("#segments").addEventListener("change", e=>{
+      state.segments = clamp(parseInt(e.target.value||1,10),1,4);
+      render();
+    });
+    $("#chunk").addEventListener("change", e=>{
+      state.chunkBytes = clamp(parseInt(e.target.value||4096,10),512,134217728);
+      render();
+    });
+    $("#aggIndex").addEventListener("change", e=>{
+      state.aggIndex = clamp(parseInt(e.target.value||0,10),0,Math.max(0, state.W-1));
+      render();
+    });
+    $("#lat").addEventListener("change", e=>{ state.lat = clamp(+e.target.value,1,200); render(); });
+    $("#dev").addEventListener("change", e=>{ state.dev = clamp(+e.target.value,10,2000); render(); });
+    $("#hostc").addEventListener("change", e=>{ state.hostc = clamp(+e.target.value,5,1000); render(); });
+    $("#aggc").addEventListener("change", e=>{ state.aggc = clamp(+e.target.value,1,200); render(); });
+
+    $("#showError").addEventListener("change", e=>{ state.showError = !!e.target.checked; render(); });
+    $("#labels").addEventListener("change", e=>{ state.showLabels = !!e.target.checked; render(); });
+    $("#random").addEventListener("change", e=>{ state.randomize = !!e.target.checked; render(); });
+    $("#dark").addEventListener("change", e=>{
+      state.dark = !!e.target.checked;
+      document.documentElement.style.setProperty('--bg', state.dark ? '#0b0f14' : '#f7fbff');
+      document.documentElement.style.setProperty('--panel', state.dark ? '#111821' : '#ffffff');
+      document.documentElement.style.setProperty('--panel-2', state.dark ? '#0e141b' : '#f4f7fb');
+      document.documentElement.style.setProperty('--fg', state.dark ? '#e6eef7' : '#0b1522');
+      document.documentElement.style.setProperty('--muted', state.dark ? '#9fb0c4' : '#506070');
+      document.documentElement.style.setProperty('--grid', state.dark ? '#233040' : '#d8e1ec');
+      document.documentElement.style.setProperty('--lane', state.dark ? '#1a2532' : '#eef4fb');
+      document.documentElement.style.setProperty('--note', state.dark ? '#2b3b51' : '#e6eef7');
+      document.documentElement.style.setProperty('--activity', state.dark ? '#1e2a39' : '#eaf1f9');
+      render();
+    });
+
+    $("#btnSvg").addEventListener("click", exportSVG);
+    $("#btnPng").addEventListener("click", exportPNG);
+    $("#btnReset").addEventListener("click", ()=>{ Object.assign(state, {
+      solution: 's2', W:6, segments:1, chunkBytes:4096, aggIndex:0,
+      showError:false, showLabels:true, randomize:false, dark:true,
+      lat:15, dev:250, hostc:40, aggc:6
+    }); bindControls(); render(); });
+  }
+
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  // Data model → events
+  function buildModel(){
+    const participants = [];
+    participants.push({id:'host', label:'Host'});
+    for(let i=0;i<state.W;i++) participants.push({id:`ssd${i}`, label:`SSD${i}`});
+    let aggId = `ssd${clamp(state.aggIndex,0,state.W-1)}`;
+    let hasAggLane = (state.solution==='s3'); // aggregator is one of the SSD lanes
+
+    // Helpers
+    const lat = state.lat;
+    const hostCombine = state.hostc;
+    const baseDev = state.dev;
+    const aggPerElem = state.aggc;
+    const segs = state.segments;
+    const chunkBytes = state.chunkBytes;
+    const segBytes = Math.floor(chunkBytes/segs);
+    const jitter = () => state.randomize ? (Math.random()-0.5) * baseDev*0.3 : 0;
+
+    const events = [];
+    const notes = [];
+    const activities = [];
+
+    function msg(from,to,t0,t1,label,status='ok'){
+      events.push({type:'msg', from, to, t0, t1, label, status});
+      return t1;
+    }
+    function activity(lane,t0,t1,label){
+      activities.push({type:'act', lane, t0, t1, label});
+    }
+    function note(lane,t,label){
+      notes.push({type:'note', lane, t, label});
+    }
+
+    // Build per-solution
+    let tmax = 0;
+    if(state.solution==='s1'){
+      // Serial chain with seeding across W SSDs and segs per extent
+      let t = 0;
+      let calcCRC = '0x0000...';
+      for(let i=0;i<state.W;i++){
+        for(let s=0;s<segs;s++){
+          const labelReq = state.showLabels ? `CRC_Calc(seed=${calcCRC}, LBA=${i}:${s}, len=${segBytes})` : `CRC_Calc`;
+          t = msg('host', `ssd${i}`, t, t+lat, labelReq, 'ok');
+          // device compute
+          const dev = Math.max(5, baseDev + jitter());
+          activity(`ssd${i}`, t, t+dev, `CRC compute (${segBytes}B)`);
+          // simulate error on middle element only when enabled
+          const isErr = state.showError && (i===Math.floor(state.W/2)) && (s===0);
+          if(isErr){
+            t = msg(`ssd${i}`, 'host', t+dev, t+dev+lat, `Completion(ERROR)`, 'err');
+            // backoff & retry
+            t += 40; // backoff
+            const labelReq2 = state.showLabels ? `Retry CRC_Calc(seed=${calcCRC})` : `Retry CRC_Calc`;
+            t = msg('host', `ssd${i}`, t, t+lat, labelReq2, 'warn');
+            const dev2 = Math.max(5, baseDev*0.8 + jitter());
+            activity(`ssd${i}`, t, t+dev2, `CRC compute (retry)`);
+            // success
+            t = msg(`ssd${i}`, 'host', t+dev2, t+dev2+lat, `Completion(CRCᵢ)`, 'ok');
+          }else{
+            t = msg(`ssd${i}`, 'host', t+dev, t+dev+lat, `Completion(CRCᵢ)`, 'ok');
+          }
+          calcCRC = `CRC64_COMBINE(${calcCRC}, CRCᵢ, ${segBytes})`;
+          note('host', t+4, `Calculated_CRC ← ${calcCRC}`);
+        }
+      }
+      tmax = Math.max(tmax, events.reduce((m,e)=>Math.max(m,e.t1),0) + 40);
+      // final check
+      note('host', tmax-20, `Compare Calculated_CRC vs Golden_CRC`);
+
+    } else if(state.solution==='s2'){
+      // Parallel fan-out to W SSDs, then host aggregation tree
+      const t0 = 0;
+      // issue requests at t0
+      for(let i=0;i<state.W;i++){
+        const labelReq = state.showLabels ? `CRC_Calc(seed=0, LBA=${i}, len=${chunkBytes})` : `CRC_Calc(seed=0)`;
+        msg('host', `ssd${i}`, t0, t0+lat, labelReq, 'ok');
+      }
+      // device computes independently
+      const completes = [];
+      for(let i=0;i<state.W;i++){
+        const dev = Math.max(5, baseDev + jitter());
+        activity(`ssd${i}`, t0+lat, t0+lat+dev, `CRC compute (${chunkBytes}B)`);
+        // error simulation on a single SSD
+        const isErr = state.showError && (i===Math.floor(state.W/2));
+        if(isErr){
+          msg(`ssd${i}`, 'host', t0+lat+dev, t0+lat+dev+lat, `Completion(ERROR)`, 'err');
+          const backoff = 40;
+          msg('host', `ssd${i}`, t0+lat+dev+lat+backoff, t0+lat+dev+lat+backoff+lat, `Retry CRC_Calc(seed=0)`, 'warn');
+          const dev2 = Math.max(5, baseDev*0.85 + jitter());
+          activity(`ssd${i}`, t0+lat+dev+lat+backoff+lat, t0+lat+dev+lat+backoff+lat+dev2, `CRC compute (retry)`);
+          const tDone = t0+lat+dev+lat+backoff+lat+dev2+lat;
+          msg(`ssd${i}`, 'host', t0+lat+dev+lat+backoff+lat+dev2, tDone, `Completion(CRC${i})`, 'ok');
+          completes.push(tDone);
+        } else {
+          const tDone = t0+lat+dev+lat;
+          msg(`ssd${i}`, 'host', t0+lat+dev, tDone, `Completion(CRC${i})`, 'ok');
+          completes.push(tDone);
+        }
+      }
+      // host combine once all are in
+      const tStartAgg = Math.max(...completes) + 10;
+      // Use log2 tree staged aggregation
+      let count = state.W;
+      let stage = 0;
+      let tStage = tStartAgg;
+      while(count>1){
+        const ops = Math.floor(count/2);
+        for(let j=0;j<ops;j++){
+          activity('host', tStage, tStage+hostCombine, `Combine stage ${stage+1}: CRC64_COMBINE(pair ${j+1})`);
+        }
+        tStage += hostCombine + 10;
+        count = Math.ceil(count/2);
+        stage++;
+      }
+      tmax = tStage + 30;
+      note('host', tmax-20, `Compare Calculated_CRC vs Golden_CRC`);
+
+    } else if(state.solution==='s3'){
+      // Parallel fan-out; device aggregation on aggregator SSD
+      const t0 = 0;
+      for(let i=0;i<state.W;i++){
+        const labelReq = state.showLabels ? `CRC_Calc(seed=0, LBA=${i}, len=${chunkBytes})` : `CRC_Calc(seed=0)`;
+        msg('host', `ssd${i}`, t0, t0+lat, labelReq, 'ok');
+      }
+      const completes = [];
+      for(let i=0;i<state.W;i++){
+        const dev = Math.max(5, baseDev + jitter());
+        activity(`ssd${i}`, t0+lat, t0+lat+dev, `CRC compute (${chunkBytes}B)`);
+        const isErr = state.showError && (i===Math.floor(state.W/2));
+        if(isErr){
+          msg(`ssd${i}`, 'host', t0+lat+dev, t0+lat+dev+lat, `Completion(ERROR)`, 'err');
+          const backoff = 40;
+          msg('host', `ssd${i}`, t0+lat+dev+lat+backoff, t0+lat+dev+lat+backoff+lat, `Retry CRC_Calc(seed=0)`, 'warn');
+          const dev2 = Math.max(5, baseDev*0.85 + jitter());
+          activity(`ssd${i}`, t0+lat+dev+lat+backoff+lat, t0+lat+dev+lat+backoff+lat+dev2, `CRC compute (retry)`);
+          const tDone = t0+lat+dev+lat+backoff+lat+dev2+lat;
+          msg(`ssd${i}`, 'host', t0+lat+dev+lat+backoff+lat+dev2, tDone, `Completion(CRC${i})`, 'ok');
+          completes.push(tDone);
+        } else {
+          const tDone = t0+lat+dev+lat;
+          msg(`ssd${i}`, 'host', t0+lat+dev, tDone, `Completion(CRC${i})`, 'ok');
+          completes.push(tDone);
+        }
+      }
+      // Host sends list to aggregator
+      const tAggReq = Math.max(...completes) + 10;
+      const listLabel = state.showLabels ? `CRC_Combine(Src=[(CRC0,${chunkBytes}),…×W])` : `CRC_Combine(list)`;
+      msg('host', aggId, tAggReq, tAggReq+lat, listLabel, 'ok');
+      // Aggregator compute
+      // Assume linear cost per element; you can set aggc to estimate DPU math loop
+      const aggTime = Math.max(5, aggPerElem * state.W);
+      activity(aggId, tAggReq+lat, tAggReq+lat+aggTime, `Aggregate ${state.W} elems`);
+      // Completion
+      const tDone = tAggReq+lat+aggTime+lat;
+      msg(aggId, 'host', tAggReq+lat+aggTime, tDone, `Completion(Final_CRC)`, 'ok');
+      tmax = tDone + 30;
+      note('host', tmax-20, `Compare Final_CRC vs Golden_CRC`);
+    }
+
+    // metrics
+    const lastT = Math.max( ...events.map(e=>e.t1), ...activities.map(a=>a.t1), 0 );
+    const metrics = {
+      latency: lastT.toFixed(1)+' µs (model)',
+      fanout: (state.solution==='s1' ? '1 in-flight per object (serialized)' :
+              state.solution==='s2' ? `${state.W} CRC_Calc + host combine` :
+              `${state.W} CRC_Calc + 1 CRC_Combine on SSD${state.aggIndex}`),
+      notes: (state.solution==='s1'
+              ? 'Head-of-line risk per object; steady-state pipeline.'
+              : state.solution==='s2'
+              ? 'Parallel per-SSD compute; host runs log₂(W) combine stages.'
+              : 'Parallel per-SSD compute; device-side reduction + single completion.')
+    };
+
+    return {participants, events, activities, notes, tmax: Math.max(tmax,lastT), metrics};
+  }
+
+  // Render SVG
+  function render(){
+    const model = buildModel();
+    draw(model);
+    $("#m-lat").textContent = model.metrics.latency;
+    $("#m-fanout").textContent = model.metrics.fanout;
+    $("#m-notes").textContent = model.metrics.notes;
+  }
+
+  function draw(model){
+    const lanes = model.participants;
+    // Layout constants
+    const laneH = 70;
+    const lanePad = 30;
+    const lifelineTop = 26;
+    const lifelineBottom = laneH - 14;
+    const gridH = lanes.length * laneH + 20;
+    const leftPad = 160;
+    const rightPad = 24;
+    const topPad = 16;
+    const bottomPad = 24;
+    const widthPx = 1400;
+    const tmax = model.tmax || 100;
+    const scaleX = (t)=> leftPad + (t / (tmax||1)) * (widthPx - leftPad - rightPad);
+
+    // Clear & set size
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute('width', widthPx);
+    svg.setAttribute('height', gridH + topPad + bottomPad);
+    svg.setAttribute('viewBox', `0 0 ${widthPx} ${gridH + topPad + bottomPad}`);
+
+    // defs: markers
+    const defs = el('defs', {});
+    defs.appendChild(markerArrow('arrowOk', '#24d28a'));
+    defs.appendChild(markerArrow('arrowErr', '#ff6b6b'));
+    defs.appendChild(markerArrow('arrowWarn', '#ffcc40'));
+    svg.appendChild(defs);
+
+    // Background lanes
+    for(let i=0;i<lanes.length;i++){
+      const g = el('g', {transform:`translate(0,${topPad + i*laneH})`});
+      const y = 0;
+      g.appendChild(el('rect', {x:0, y, width:widthPx, height: laneH, class:'laneBox'}));
+      // label
+      g.appendChild(el('text', {x:14, y:22, class:'laneLabel'}, lanes[i].label));
+      // lifeline
+      g.appendChild(el('line', {
+        x1: leftPad-10, x2: widthPx-rightPad, y1: lifelineTop, y2: lifelineTop,
+        class:'gridline'
+      }));
+      g.appendChild(el('line', {
+        x1: leftPad, x2: leftPad, y1: lifelineTop, y2: lifelineBottom,
+        class:'lifeline'
+      }));
+      svg.appendChild(g);
+    }
+
+    // Draw activities first (under messages)
+    for(const a of model.activities){
+      const laneIdx = laneIndex(a.lane, lanes);
+      if(laneIdx<0) continue;
+      const g = el('g', {transform:`translate(0,${topPad + laneIdx*laneH})`});
+      const x = scaleX(a.t0);
+      const w = Math.max(1, scaleX(a.t1)-scaleX(a.t0));
+      const y = 32;
+      const h = 20;
+      const rect = el('rect', {x, y, width:w, height:h, rx:6, ry:6, class:'activity'});
+      g.appendChild(rect);
+      if(w>60){
+        g.appendChild(el('text', {x:x+6, y:y+14, class:'laneLabel', style:'font-size:12px;font-weight:500;fill:#cfe3ff'}, a.label));
+      }
+      attachTip(g, `<strong>Activity</strong><br>${lanes[laneIdx].label}<br><code>${a.label}</code><br>t=[${a.t0.toFixed(1)}, ${a.t1.toFixed(1)}] µs`);
+      svg.appendChild(g);
+    }
+
+    // Messages
+    for(const e of model.events){
+      const fromIdx = laneIndex(e.from, lanes);
+      const toIdx = laneIndex(e.to, lanes);
+      if(fromIdx<0 || toIdx<0) continue;
+      const y1 = topPad + fromIdx*laneH + 42;
+      const y2 = topPad + toIdx*laneH + 42;
+      const x1 = scaleX(e.t0);
+      const x2 = scaleX(e.t1);
+      const g = el('g', {});
+      const klass = e.status==='err' ? 'msg err' : (e.status==='warn' ? 'msg warn' : 'msg ok');
+      const path = el('path', {d: `M ${x1} ${y1} L ${x2} ${y2}`, class: klass});
+      if(e.status==='err') path.setAttribute('marker-end','url(#arrowErr)');
+      else if(e.status==='warn') path.setAttribute('marker-end','url(#arrowWarn)');
+      else path.setAttribute('marker-end','url(#arrowOk)');
+      g.appendChild(path);
+      // label
+      if(state.showLabels){
+        const midx = (x1+x2)/2;
+        const midy = (y1+y2)/2 - 6;
+        g.appendChild(el('text', {x:midx, y:midy, class:'msg label', 'text-anchor':'middle'}, e.label));
+      }
+      attachTip(g, `<strong>Message</strong><br>${lanes[fromIdx].label} ➜ ${lanes[toIdx].label}<br><code>${e.label}</code><br>t=[${e.t0.toFixed(1)}, ${e.t1.toFixed(1)}] µs`);
+      svg.appendChild(g);
+    }
+
+    // Notes
+    for(const n of model.notes){
+      const laneIdx = laneIndex(n.lane, lanes);
+      if(laneIdx<0) continue;
+      const g = el('g', {transform:`translate(0,${topPad + laneIdx*laneH})`});
+      const x = scaleX(n.t)-40;
+      const y = 56;
+      const w = 260;
+      const h = 18;
+      g.appendChild(el('rect', {x, y, width:w, height:h, rx:6, ry:6, class:'note'}));
+      g.appendChild(el('text', {x:x+8, y:y+13}, n.label));
+      attachTip(g, `<strong>Note</strong><br>${lanes[laneIdx].label}<br>${n.label}<br>t≈${n.t.toFixed(1)} µs`);
+      svg.appendChild(g);
+    }
+  }
+
+  function laneIndex(id, lanes){ return Math.max(0, lanes.findIndex(l=>l.id===id)); }
+
+  function el(name, attrs={}, text){
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for(const k in attrs){ node.setAttribute(k, attrs[k]); }
+    if(text!=null) node.textContent = text;
+    return node;
+  }
+  function markerArrow(id, color){
+    const m = el('marker', {id, markerWidth:10, markerHeight:8, refX:9, refY:4, orient:'auto-start-reverse', markerUnits:'strokeWidth'});
+    const path = el('path', {d:'M 0 0 L 10 4 L 0 8 z', fill: color});
+    m.appendChild(path);
+    return m;
+  }
+
+  function attachTip(g, html){
+    g.addEventListener('mouseenter', (e)=>{
+      tooltip.innerHTML = html;
+      tooltip.style.display = 'block';
+      moveTip(e);
+    });
+    g.addEventListener('mousemove', moveTip);
+    g.addEventListener('mouseleave', ()=>{ tooltip.style.display='none'; });
+  }
+  function moveTip(e){
+    const pad = 12;
+    tooltip.style.left = (e.clientX + pad) + 'px';
+    tooltip.style.top = (e.clientY - pad) + 'px';
+  }
+
+  // Exporters
+  function exportSVG(){
+    const ser = new XMLSerializer();
+    const str = ser.serializeToString(svg);
+    const blob = new Blob([str], {type:'image/svg+xml'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crc_workflow_${state.solution}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 100);
+  }
+  function exportPNG(){
+    const ser = new XMLSerializer();
+    const str = ser.serializeToString(svg);
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([str], {type:'image/svg+xml'}));
+    img.onload = function(){
+      const canvas = document.createElement('canvas');
+      canvas.width = svg.viewBox.baseVal.width || svg.getBoundingClientRect().width;
+      canvas.height = svg.viewBox.baseVal.height || svg.getBoundingClientRect().height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#0b0f14';
+      ctx.fillRect(0,0,canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(blob=>{
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `crc_workflow_${state.solution}.png`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 100);
+      }, 'image/png');
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+
+  bindControls();
+  render();
+})();</script>
+</body>
+</html>
