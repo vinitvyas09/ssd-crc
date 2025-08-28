@@ -42,11 +42,14 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#0b0f14] via-[#111821] to-[#0e141b]">
-      <div className="absolute inset-0 opacity-20" style={{ 
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='grid' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='%23233040' stroke-width='0.5' opacity='0.3'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23grid)' /%3E%3C/svg%3E")`
-      }}></div>
-      
-      <section className="relative mx-auto max-w-7xl px-6 py-16">
+      <div
+        className="absolute inset-0 opacity-20 pointer-events-none z-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='grid' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='%23233040' stroke-width='0.5' opacity='0.3'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23grid)' /%3E%3C/svg%3E")`
+        }}
+      ></div>
+
+      <section className="relative z-10 mx-auto max-w-7xl px-6 py-16">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -54,14 +57,14 @@ export default function Home() {
           className="text-center mb-12"
         >
           <motion.h1 
-            className="text-5xl font-bold tracking-tight bg-gradient-to-r from-[#59a8ff] via-[#70b4ff] to-[#59a8ff] bg-clip-text text-transparent mb-4"
+            className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight bg-gradient-to-r from-[#59a8ff] via-[#70b4ff] to-[#59a8ff] bg-clip-text text-transparent mb-4 leading-tight"
             animate={{ backgroundPosition: ["0%", "100%", "0%"] }}
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
             style={{ backgroundSize: "200% 100%" }}
           >
             CRC Validation Workflows
           </motion.h1>
-          <p className="mt-4 text-lg text-[#9fb0c4] max-w-3xl mx-auto leading-relaxed">
+          <p className="mt-4 text-base md:text-lg text-[#9fb0c4] max-w-3xl mx-auto leading-relaxed">
             Explore three architectural approaches for offloading CRC computation from hosts to SSDs 
             in erasure-coded storage systems. Visualize performance tradeoffs and implementation complexity.
           </p>
@@ -94,13 +97,13 @@ export default function Home() {
               transition={{ delay: index * 0.1, duration: 0.5 }}
               onMouseEnter={() => setHoveredCard(index)}
               onMouseLeave={() => setHoveredCard(null)}
-              className="relative group"
+              className="relative group h-full"
             >
               <div 
                 className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"
                 style={{ background: `radial-gradient(circle at center, ${solution.color}40, transparent)` }}
               />
-              <div className="relative rounded-2xl border border-[#233040] bg-gradient-to-b from-[#111821] to-[#0e141b] p-6 transition-all duration-300 group-hover:border-[#2a3a4d] group-hover:transform group-hover:translateY(-2)">
+              <div className="relative rounded-2xl border border-[#233040] bg-gradient-to-b from-[#111821] to-[#0e141b] p-6 transition-all duration-300 group-hover:border-[#2a3a4d] transform group-hover:-translate-y-1 flex flex-col h-full">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <motion.div 
@@ -115,14 +118,14 @@ export default function Home() {
                   </div>
                 </div>
                 
-                <ul className="space-y-3">
+                <ul className="space-y-3 leading-relaxed text-[#9fb0c4] break-words">
                   {solution.features.map((feature, idx) => (
                     <motion.li 
                       key={idx}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 + idx * 0.05 }}
-                      className="flex items-start gap-2 text-sm text-[#9fb0c4]"
+                      className="flex items-start gap-2 text-sm"
                     >
                       <svg 
                         className="w-4 h-4 mt-0.5 flex-shrink-0 transition-colors" 
@@ -136,6 +139,7 @@ export default function Home() {
                     </motion.li>
                   ))}
                 </ul>
+                <div className="mt-4" />
               </div>
             </motion.article>
           ))}
