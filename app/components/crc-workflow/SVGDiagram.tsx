@@ -6,10 +6,11 @@ import { WorkflowModel, TooltipState } from '@/app/types/crc-workflow';
 interface SVGDiagramProps {
   model: WorkflowModel;
   svgRef: React.RefObject<SVGSVGElement | null> | null;
-  onTooltip: (tooltip: TooltipState) => void;
+  onTooltip: (e: React.MouseEvent, content: string) => void;
+  onHideTooltip?: () => void;
 }
 
-export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps) {
+export default function SVGDiagram({ model, svgRef, onTooltip, onHideTooltip }: SVGDiagramProps) {
   const lanes = model.participants;
   const laneH = 70;
   const lifelineTop = 26;
@@ -25,29 +26,16 @@ export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps
   const scaleX = (t: number) => leftPad + (t / tmax) * (widthPx - leftPad - rightPad);
   const laneIndex = (id: string) => Math.max(0, lanes.findIndex(l => l.id === id));
 
-  const [currentContent, setCurrentContent] = React.useState('');
-
   const handleMouseEnter = (e: React.MouseEvent, content: string) => {
-    setCurrentContent(content);
-    onTooltip({
-      visible: true,
-      x: e.clientX + 10,
-      y: e.clientY + 10,
-      content
-    });
+    onTooltip(e, content);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    onTooltip({
-      visible: true,
-      x: e.clientX + 10,
-      y: e.clientY + 10,
-      content: currentContent
-    });
+    onTooltip(e, '');
   };
 
   const handleMouseLeave = () => {
-    onTooltip({ visible: false, x: 0, y: 0, content: '' });
+    if (onHideTooltip) onHideTooltip();
   };
 
   return (
@@ -145,11 +133,22 @@ export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps
           <g
             key={`activity-${idx}`}
             onMouseEnter={(e) => handleMouseEnter(e, 
-              `<strong>Activity</strong><br>${lanes[laneIdx].label}<br><code>${activity.label}</code><br>t=[${activity.t0.toFixed(1)}, ${activity.t1.toFixed(1)}] µs`
+              `<strong>Activity</strong><br>${lanes[laneIdx].label}<br><code>${activity.label}</code><br>Duration: ${(activity.t1 - activity.t0).toFixed(1)} µs`
             )}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
+            style={{ cursor: 'pointer' }}
           >
+            {/* Invisible larger hit zone for better UX */}
+            <rect
+              x={x - 8}
+              y={y - 8}
+              width={w + 16}
+              height={h + 16}
+              fill="transparent"
+              strokeWidth="0"
+              pointerEvents="all"
+            />
             <rect
               x={x}
               y={y}
@@ -160,6 +159,7 @@ export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps
               fill="var(--activity)"
               stroke="#2a3a4d"
               strokeWidth="1"
+              pointerEvents="none"
             />
             {w > 60 && activity.label && (
               <text
@@ -193,17 +193,27 @@ export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps
           <g
             key={`msg-${idx}`}
             onMouseEnter={(e) => handleMouseEnter(e,
-              `<strong>Message</strong><br>${lanes[fromIdx].label} ➜ ${lanes[toIdx].label}<br><code>${event.label}</code><br>t=[${event.t0.toFixed(1)}, ${event.t1.toFixed(1)}] µs`
+              `<strong>${event.label}</strong><br>${lanes[fromIdx].label} → ${lanes[toIdx].label}<br>Latency: ${(event.t1 - event.t0).toFixed(1)} µs`
             )}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
+            style={{ cursor: 'pointer' }}
           >
+            {/* Invisible wider hit zone for arrow */}
+            <path
+              d={`M ${x1} ${y1} L ${x2} ${y2}`}
+              stroke="transparent"
+              strokeWidth="20"
+              fill="none"
+              pointerEvents="stroke"
+            />
             <path
               d={`M ${x1} ${y1} L ${x2} ${y2}`}
               stroke={strokeColor}
               strokeWidth="2"
               fill="none"
               markerEnd={markerEnd}
+              pointerEvents="none"
             />
             {/* Intentionally hide inline event labels to avoid visual overlap with arrows.
                 Detailed content remains accessible via tooltip on hover. */}
