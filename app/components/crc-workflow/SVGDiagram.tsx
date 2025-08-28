@@ -161,15 +161,22 @@ export default function SVGDiagram({ model, svgRef, onTooltip, onHideTooltip }: 
               strokeWidth="1"
               pointerEvents="none"
             />
-            {w > 60 && activity.label && (
-              <text
-                x={x + 6}
-                y={y + 14}
-                className="text-xs font-medium"
-                fill="#cfe3ff"
-              >
-                {activity.label}
-              </text>
+            {w > 40 && activity.label && (
+              <g>
+                <clipPath id={`clip-activity-${idx}`}>
+                  <rect x={x + 4} y={y} width={w - 8} height={h} />
+                </clipPath>
+                <text
+                  x={x + 6}
+                  y={y + 14}
+                  className="text-xs font-medium"
+                  fill="#cfe3ff"
+                  clipPath={`url(#clip-activity-${idx})`}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {activity.label}
+                </text>
+              </g>
             )}
           </g>
         );
