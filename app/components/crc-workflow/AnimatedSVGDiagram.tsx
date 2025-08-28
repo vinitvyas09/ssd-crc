@@ -24,6 +24,7 @@ export default function AnimatedSVGDiagram({
   svgRef, 
   state, 
   onTooltip, 
+  onHideTooltip,
   isPlaying,
   onPlayComplete,
   playbackSpeed,
@@ -64,6 +65,7 @@ export default function AnimatedSVGDiagram({
 
   const handleMouseLeave = () => {
     setHoveredItem(null);
+    if (onHideTooltip) onHideTooltip();
   };
 
   // Calculate visibility based on animation progress
