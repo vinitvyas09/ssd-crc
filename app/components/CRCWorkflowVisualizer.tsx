@@ -138,20 +138,20 @@ export default function CRCWorkflowVisualizer() {
   const updateTooltip = useCallback((e: React.MouseEvent, content: string) => {
     if (!containerRef.current) return;
     
-    let x = e.clientX;
-    let y = e.clientY - 40;
+    let x = e.clientX + 10;
+    let y = e.clientY + 10;
 
     const tooltipWidth = 320;
     const tooltipHeight = 100;
     
-    if (x + tooltipWidth / 2 > window.innerWidth) {
-      x = window.innerWidth - tooltipWidth / 2 - 20;
-    } else if (x - tooltipWidth / 2 < 0) {
-      x = tooltipWidth / 2 + 20;
+    // Adjust if tooltip would go off the right edge
+    if (x + tooltipWidth > window.innerWidth) {
+      x = e.clientX - tooltipWidth - 10;
     }
     
-    if (y - tooltipHeight < 0) {
-      y = e.clientY + 40;
+    // Adjust if tooltip would go off the bottom edge
+    if (y + tooltipHeight > window.innerHeight) {
+      y = e.clientY - tooltipHeight - 10;
     }
     
     setTooltip({ visible: true, x, y, content });
@@ -956,14 +956,13 @@ export default function CRCWorkflowVisualizer() {
       <AnimatePresence>
         {tooltip.visible && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             className="fixed pointer-events-none z-[9999]"
             style={{
               left: `${tooltip.x}px`,
               top: `${tooltip.y}px`,
-              transform: 'translate(-50%, -100%)',
             }}
           >
             <div className="glass-panel rounded-xl px-4 py-3 max-w-[320px] shadow-2xl">
