@@ -172,6 +172,19 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
           background: linear-gradient(135deg, var(--accent), var(--accent-hover));
           color: white;
         }
+        
+        /* Modern toggle switch enhancements */
+        button[role="switch"] {
+          box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        button[role="switch"]:hover {
+          box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+        }
+        
+        button[role="switch"][aria-checked="true"] {
+          box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.1), 0 0 0 2px rgba(89, 168, 255, 0.2);
+        }
       `}</style>
 
       {/* Solution Selector with Cards */}
