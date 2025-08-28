@@ -102,15 +102,22 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
         return (
           <g key={lane.id} transform={`translate(0,${topPad + i * laneH})`}>
             <rect x="0" y="0" width={widthPx} height={laneH} fill="var(--lane)" />
-            {/* Left indicator */}
-            <rect x="0" y="0" width="150" height={laneH} fill={isHost ? 'rgba(89,168,255,0.06)' : 'rgba(36,210,138,0.06)'} />
-            <line x1="150" x2="150" y1="0" y2={laneH} stroke="#2b3a4a" opacity="0.35" />
+            {/* Left indicator with gradient background */}
+            <defs>
+              <linearGradient id={`gradient-${lane.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={isHost ? '#59a8ff' : '#24d28a'} stopOpacity="0.15" />
+                <stop offset="100%" stopColor={isHost ? '#59a8ff' : '#24d28a'} stopOpacity="0.05" />
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="150" height={laneH} fill={`url(#gradient-${lane.id})`} />
+            <rect x="0" y="0" width="3" height={laneH} fill={isHost ? '#59a8ff' : '#24d28a'} opacity="0.6" />
+            <line x1="150" x2="150" y1="0" y2={laneH} stroke="#4a5568" strokeWidth="1" opacity="0.5" />
             {/* Icon and labels */}
-            <g transform="translate(14, 22)">
-              {isHost && (<text className="text-[18px]" fill="currentColor" style={{ color: 'var(--accent)' }} x="0" y="2">🖥️</text>)}
-              {isSSD && (<text className="text-[18px]" fill="currentColor" style={{ color: 'var(--ok)' }} x="0" y="2">💾</text>)}
-              <text x="30" y="0" className="text-[14px] font-semibold" fill="var(--fg)">{lane.label}</text>
-              <text x="30" y="16" className="text-[11px]" fill="var(--muted)">{isHost ? 'Controller' : 'Storage Device'}</text>
+            <g transform="translate(14, 35)">
+              {isHost && (<text fontSize="18" x="0" y="0">🖥️</text>)}
+              {isSSD && (<text fontSize="18" x="0" y="0">💾</text>)}
+              <text x="30" y="-2" fontSize="14" fontWeight="600" fill={isHost ? '#59a8ff' : '#24d28a'}>{lane.label}</text>
+              <text x="30" y="14" fontSize="11" fill="#8b95a7" opacity="0.95">{isHost ? 'Controller' : 'Storage Device'}</text>
             </g>
             <line
               x1={leftPad - 10}
