@@ -26,7 +26,10 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
   const scaleX = (t: number) => leftPad + (t / tmax) * (widthPx - leftPad - rightPad);
   const laneIndex = (id: string) => Math.max(0, lanes.findIndex(l => l.id === id));
 
+  const [currentContent, setCurrentContent] = React.useState('');
+
   const handleMouseEnter = (e: React.MouseEvent, content: string) => {
+    setCurrentContent(content);
     onTooltip({
       visible: true,
       x: e.clientX + 12,
@@ -40,7 +43,7 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
       visible: true,
       x: e.clientX + 12,
       y: e.clientY - 12,
-      content: ''
+      content: currentContent
     });
   };
 
