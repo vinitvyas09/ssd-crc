@@ -131,11 +131,13 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     
     const tStartAgg = allComplete + 10;
     
-    // Host performs a single aggregation step over all partial CRCs
+    // Host aggregation time scales with log₂ of shards (stripe width W)
+    const hostAggStages = Math.ceil(Math.log2(Math.max(1, state.W)));
+    const hostAggTime = Math.max(1, hostCombine * hostAggStages);
     const aggLabel = state.showLabels ? 'Combine CRC' : '';
-    activity('host', tStartAgg, tStartAgg + hostCombine, aggLabel);
+    activity('host', tStartAgg, tStartAgg + hostAggTime, aggLabel);
     
-    tmax = tStartAgg + hostCombine + 30;
+    tmax = tStartAgg + hostAggTime + 30;
     note('host', tmax - 20, `Compare Calculated_CRC vs Golden_CRC`);
     
   } else if (state.solution === 's3') {
