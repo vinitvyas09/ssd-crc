@@ -415,16 +415,20 @@ export default function CRCWorkflowVisualizer() {
                   {Math.round(performanceData[performanceData.length - 1]?.throughput * 5 + 400) || 470} MB/s
                 </div>
                 <div className="mt-2 flex items-end gap-1 h-8">
-                  {[...Array(8)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 bg-[var(--warn)]"
-                      style={{
-                        height: `${Math.random() * 100}%`,
-                        opacity: 0.3 + i * 0.1
-                      }}
-                    />
-                  ))}
+                  {[...Array(8)].map((_, i) => {
+                    // Use deterministic height based on index
+                    const height = ((Math.sin(i * 0.8) * 0.5 + 0.5) * 80 + 20);
+                    return (
+                      <div
+                        key={i}
+                        className="flex-1 bg-[var(--warn)]"
+                        style={{
+                          height: `${height}%`,
+                          opacity: 0.3 + i * 0.1
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </motion.div>
 
