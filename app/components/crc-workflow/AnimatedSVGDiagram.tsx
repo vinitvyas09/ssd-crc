@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { WorkflowModel, WorkflowState, TooltipState } from '@/app/types/crc-workflow';
+import { WorkflowModel, WorkflowState } from '@/app/types/crc-workflow';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AnimatedSVGDiagramProps {
