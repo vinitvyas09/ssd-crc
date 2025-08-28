@@ -5,7 +5,7 @@ import { WorkflowModel, WorkflowState, TooltipState } from '@/app/types/crc-work
 
 interface SVGDiagramProps {
   model: WorkflowModel;
-  svgRef: React.RefObject<SVGSVGElement>;
+  svgRef: React.RefObject<SVGSVGElement | null> | null;
   state: WorkflowState;
   onTooltip: (tooltip: TooltipState) => void;
 }
