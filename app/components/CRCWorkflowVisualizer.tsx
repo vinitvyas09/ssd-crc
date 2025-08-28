@@ -12,7 +12,10 @@ type ViewMode = 'single' | 'compare' | 'timeline';
 
 export default function CRCWorkflowVisualizer() {
   const [state, setState] = useState<WorkflowState>(initialState);
-  const [compareState, setCompareState] = useState<WorkflowState>({ ...initialState, solution: 's2' });
+  // Initialize compare solution to be different from initial state solution
+  const [compareSolution, setCompareSolution] = useState<SolutionType>(
+    initialState.solution === 's1' ? 's2' : 's1'
+  );
   const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, x: 0, y: 0, content: '' });
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -57,6 +60,7 @@ export default function CRCWorkflowVisualizer() {
 
   // Build the workflow models
   const model = useMemo(() => buildWorkflowModel(state), [state]);
+  const compareState = useMemo(() => ({ ...state, solution: compareSolution }), [state, compareSolution]);
   const compareModel = useMemo(() => buildWorkflowModel(compareState), [compareState]);
 
   // Smart tooltip positioning
@@ -537,7 +541,6 @@ export default function CRCWorkflowVisualizer() {
                           <SVGDiagram 
                             model={model} 
                             svgRef={dummyRef} 
-                            state={state} 
                             onTooltip={() => {}}
                           />
                         </div>
@@ -556,12 +559,16 @@ export default function CRCWorkflowVisualizer() {
                   className="h-full p-6"
                 >
                   <div className="h-full grid grid-cols-2 gap-4">
-                    <div className="glass-panel rounded-2xl p-4 overflow-auto">
+                    <div className="glass-panel rounded-2xl p-4 overflow-auto relative">
                       <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Left Panel</span>
+                          <span className="text-xs px-2 py-1 bg-[var(--accent)] text-white rounded-full">Solution {state.solution.slice(1)}</span>
+                        </div>
                         <select
                           value={state.solution}
                           onChange={(e) => setState({ ...state, solution: e.target.value as SolutionType })}
-                          className="bg-[var(--panel-2)] text-[var(--fg)] px-3 py-2 rounded-lg"
+                          className="bg-[var(--panel-2)] text-[var(--fg)] px-3 py-2 rounded-lg w-full"
                         >
                           {Object.entries(SOLUTIONS).map(([key, label]) => (
                             <option key={key} value={key}>{label}</option>
@@ -584,12 +591,16 @@ export default function CRCWorkflowVisualizer() {
                       />
                     </div>
                     
-                    <div className="glass-panel rounded-2xl p-4 overflow-auto">
+                    <div className="glass-panel rounded-2xl p-4 overflow-auto relative">
                       <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Right Panel</span>
+                          <span className="text-xs px-2 py-1 bg-[var(--warn)] text-white rounded-full">Solution {compareSolution.slice(1)}</span>
+                        </div>
                         <select
-                          value={compareState.solution}
-                          onChange={(e) => setCompareState({ ...compareState, solution: e.target.value as SolutionType })}
-                          className="bg-[var(--panel-2)] text-[var(--fg)] px-3 py-2 rounded-lg"
+                          value={compareSolution}
+                          onChange={(e) => setCompareSolution(e.target.value as SolutionType)}
+                          className="bg-[var(--panel-2)] text-[var(--fg)] px-3 py-2 rounded-lg w-full"
                         >
                           {Object.entries(SOLUTIONS).map(([key, label]) => (
                             <option key={key} value={key}>{label}</option>
