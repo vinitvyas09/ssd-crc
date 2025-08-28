@@ -20,7 +20,7 @@ function useDebuggedChat(options: Parameters<typeof useChat>[0]) {
       console.log('Message updated:', {
         id: lastMessage.id,
         role: lastMessage.role,
-        parts: lastMessage.parts?.map((part: any) => ({
+        parts: lastMessage.parts?.map(part => ({
           type: part.type,
           state: part.type === 'tool-invocation' ? part.toolInvocation.state : undefined,
           text: part.type === 'text' ? part.text.substring(0, 20) + '...' : undefined,
@@ -89,7 +89,8 @@ export function Chat() {
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
+    const lastMessageParts = lastMessage?.parts ?? [];
+    const lastPart = lastMessageParts[lastMessageParts.length - 1];
     const isThinking = lastPart?.type === 'tool-invocation' && lastPart.toolInvocation.state === 'call';
 
     if (shouldAutoScroll || isThinking) {
@@ -121,17 +122,17 @@ export function Chat() {
   };
 
   const markdownComponents: Components = {
-    h1: ({children}: {children?: React.ReactNode}) => <h1 className="text-xl font-semibold mt-2 mb-3 text-neutral-800 dark:text-neutral-200">{children}</h1>,
-    h2: ({children}: {children?: React.ReactNode}) => <h2 className="text-lg font-semibold mt-2 mb-2 text-neutral-800 dark:text-neutral-200">{children}</h2>,
-    h3: ({children}: {children?: React.ReactNode}) => <h3 className="text-base font-semibold mt-2 mb-2 text-neutral-800 dark:text-neutral-200">{children}</h3>,
-    p: ({children}: {children?: React.ReactNode}) => <p className="mb-2 last:mb-0">{children}</p>,
-    strong: ({children}: {children?: React.ReactNode}) => <strong className="font-semibold text-neutral-900 dark:text-neutral-100">{children}</strong>,
-    ul: ({children}: {children?: React.ReactNode}) => <ul className="list-disc pl-5 mb-2">{children}</ul>,
-    ol: ({children}: {children?: React.ReactNode}) => <ol className="list-decimal pl-5 mb-2">{children}</ol>,
-    li: ({children}: {children?: React.ReactNode}) => <li className="mb-1">{children}</li>,
-    a: ({children, href}: {children?: React.ReactNode; href?: string}) => <a href={href} className="text-amber-600 dark:text-amber-400 hover:underline">{children}</a>,
-    blockquote: ({children}: {children?: React.ReactNode}) => <blockquote className="border-l-2 border-neutral-300 dark:border-neutral-600 pl-3 italic my-2">{children}</blockquote>,
-    code: ({ className, children, ...props }: { className?: string; children?: React.ReactNode } & React.HTMLAttributes<HTMLElement>) => {
+    h1: ({children}) => <h1 className="text-xl font-semibold mt-2 mb-3 text-neutral-800 dark:text-neutral-200">{children}</h1>,
+    h2: ({children}) => <h2 className="text-lg font-semibold mt-2 mb-2 text-neutral-800 dark:text-neutral-200">{children}</h2>,
+    h3: ({children}) => <h3 className="text-base font-semibold mt-2 mb-2 text-neutral-800 dark:text-neutral-200">{children}</h3>,
+    p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+    strong: ({children}) => <strong className="font-semibold text-neutral-900 dark:text-neutral-100">{children}</strong>,
+    ul: ({children}) => <ul className="list-disc pl-5 mb-2">{children}</ul>,
+    ol: ({children}) => <ol className="list-decimal pl-5 mb-2">{children}</ol>,
+    li: ({children}) => <li className="mb-1">{children}</li>,
+    a: ({children, href}) => <a href={href} className="text-amber-600 dark:text-amber-400 hover:underline">{children}</a>,
+    blockquote: ({children}) => <blockquote className="border-l-2 border-neutral-300 dark:border-neutral-600 pl-3 italic my-2">{children}</blockquote>,
+    code: ({node, className, children, ...props}) => {
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match && !className;
       return isInline ? (
@@ -156,7 +157,7 @@ export function Chat() {
               <div className="text-neutral-400 font-light">How can I help you today?</div>
             </div>
           )}
-          {messages.map((message: any, index: number) => (
+          {messages.map((message, index) => (
             <div 
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
@@ -172,7 +173,7 @@ export function Chat() {
                 </div>
                 <div className="prose-sm dark:prose-invert max-w-none">
                   {message.role === 'user' ? (
-                    message.parts.map((part: any, partIndex: number) => {
+                    (message.parts ?? []).map((part, partIndex) => {
                       switch (part.type) {
                         case 'text':
                           return (
@@ -198,14 +199,14 @@ export function Chat() {
                         }
                         
                         // 2. Check if the message is in "tool call" state
-                        const isToolCall = message.parts.some((part: any) => 
+                        const isToolCall = message.parts.some(part => 
                           part.type === 'tool-invocation' && 
                           part.toolInvocation && 
                           part.toolInvocation.state === 'call'
                         );
                         
                         // 3. Check if the message has text content
-                        const textParts = message.parts.filter((part: any) => part.type === 'text');
+                        const textParts = message.parts.filter(part => part.type === 'text');
                         const hasText = textParts.length > 0 && textParts.some(part => part.text.trim() !== '');
                         
                         // If a tool is being called but there's no text yet, show the thinking state
@@ -220,7 +221,7 @@ export function Chat() {
                           let toolName = "unknown";
                           
                           // Check all parts for tool invocations
-                          message.parts.forEach((part: any) => {
+                          message.parts.forEach(part => {
                             if (part.type === 'tool-invocation') {
                               // Check if this is a Tavily search (has a query parameter)
                               try {
@@ -263,7 +264,7 @@ export function Chat() {
                           
                           // Check if the registered tool name is "tavilySearch" directly
                           let showTavilySearch = false;
-                          message.parts.forEach((part: any) => {
+                          message.parts.forEach(part => {
                             if (part.type === 'tool-invocation') {
                               try {
                                 const stringified = JSON.stringify(part);
@@ -286,7 +287,7 @@ export function Chat() {
                         // Otherwise, render all text parts
                         return (
                           <>
-                            {textParts.map((part: any, idx: number) => (
+                            {textParts.map((part, idx) => (
                               <div key={`text-${idx}`} className="whitespace-pre-wrap text-sm leading-relaxed markdown-content">
                                 <ReactMarkdown
                                   remarkPlugins={[remarkGfm]}
