@@ -11,6 +11,7 @@ interface AnimatedSVGDiagramProps {
   onTooltip: (e: React.MouseEvent, content: string) => void;
   isPlaying: boolean;
   onPlayComplete: () => void;
+  playbackSpeed: number;
 }
 
 export default function AnimatedSVGDiagram({ 
@@ -19,7 +20,8 @@ export default function AnimatedSVGDiagram({
   state, 
   onTooltip, 
   isPlaying,
-  onPlayComplete 
+  onPlayComplete,
+  playbackSpeed 
 }: AnimatedSVGDiagramProps) {
   const [animationProgress, setAnimationProgress] = useState(0);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
