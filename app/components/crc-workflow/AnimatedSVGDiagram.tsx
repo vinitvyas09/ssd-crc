@@ -441,8 +441,8 @@ export default function AnimatedSVGDiagram({
       {/* Stage indicator (bottom-left), minimizable */}
       <motion.g
         transform={`translate(${20}, ${gridH + topPad - 60})`}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
       >
         <rect
