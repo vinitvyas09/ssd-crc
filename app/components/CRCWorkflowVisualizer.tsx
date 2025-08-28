@@ -736,6 +736,7 @@ export default function CRCWorkflowVisualizer() {
                         svgRef={svgRef} 
                         state={state} 
                         onTooltip={updateTooltip}
+                        onHideTooltip={hideTooltip}
                         isPlaying={isPlaying}
                         onPlayComplete={() => setIsPlaying(false)}
                         playbackSpeed={playbackSpeed}
@@ -804,6 +805,7 @@ export default function CRCWorkflowVisualizer() {
                         svgRef={svgRef} 
                         state={state} 
                         onTooltip={updateTooltip}
+                        onHideTooltip={hideTooltip}
                         isPlaying={isPlaying}
                         onPlayComplete={() => {}}
                         playbackSpeed={playbackSpeed}
