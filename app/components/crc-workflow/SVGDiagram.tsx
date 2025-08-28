@@ -36,11 +36,12 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    onTooltip(prev => ({
-      ...prev,
+    onTooltip({
+      visible: true,
       x: e.clientX + 12,
-      y: e.clientY - 12
-    }));
+      y: e.clientY - 12,
+      content: ''
+    });
   };
 
   const handleMouseLeave = () => {
