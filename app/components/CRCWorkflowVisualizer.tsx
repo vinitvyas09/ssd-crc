@@ -580,6 +580,7 @@ export default function CRCWorkflowVisualizer() {
                         onTooltip={updateTooltip}
                         isPlaying={isPlaying}
                         onPlayComplete={() => {}}
+                        playbackSpeed={playbackSpeed}
                       />
                     </div>
                     
