@@ -109,8 +109,8 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
             <g transform="translate(14, 22)">
               {isHost && (<text className="text-[18px]" fill="currentColor" style={{ color: 'var(--accent)' }} x="0" y="2">🖥️</text>)}
               {isSSD && (<text className="text-[18px]" fill="currentColor" style={{ color: 'var(--ok)' }} x="0" y="2">💾</text>)}
-              <text x="30" y="0" className="text-[14px] font-semibold" fill="currentColor" style={{ color: 'var(--fg)' }}>{lane.label}</text>
-              <text x="30" y="16" className="text-[11px]" fill="currentColor" style={{ color: 'var(--muted)' }}>{isHost ? 'Controller' : 'Storage Device'}</text>
+              <text x="30" y="0" className="text-[14px] font-semibold" fill="var(--fg)">{lane.label}</text>
+              <text x="30" y="16" className="text-[11px]" fill="var(--muted)">{isHost ? 'Controller' : 'Storage Device'}</text>
             </g>
             <line
               x1={leftPad - 10}
