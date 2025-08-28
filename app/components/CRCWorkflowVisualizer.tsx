@@ -276,9 +276,24 @@ export default function CRCWorkflowVisualizer() {
         }
         
         .glass-panel {
-          background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+          background: var(--panel);
           backdrop-filter: blur(20px);
-          border: 1px solid rgba(255,255,255,0.08);
+          border: 1px solid var(--grid);
+          color: var(--fg) !important;
+        }
+        
+        .glass-panel * {
+          color: inherit !important;
+        }
+        
+        .glass-panel strong {
+          font-weight: 600;
+        }
+        
+        .glass-panel code {
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+          font-size: 0.9em;
+          opacity: 0.9;
         }
         
         .metric-glow {
@@ -966,8 +981,8 @@ export default function CRCWorkflowVisualizer() {
             }}
           >
             <div className="glass-panel rounded-xl px-4 py-3 max-w-[320px] shadow-2xl">
-              <div 
-                className="text-sm leading-relaxed text-[#e8f0fa]"
+              <div
+                className="text-sm leading-relaxed"
                 dangerouslySetInnerHTML={{ __html: tooltip.content }}
               />
             </div>
