@@ -382,42 +382,45 @@ export default function CRCWorkflowVisualizer() {
             className="px-6 py-4 bg-gradient-to-b from-[var(--panel)] to-transparent border-b border-[var(--grid)]"
           >
             <div className="grid grid-cols-4 gap-4">
-              {/* Real-time Metrics */}
-              <motion.div
-                className="glass-panel rounded-xl p-4 metric-glow"
-                whileHover={{ scale: 1.02 }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Latency</span>
-                  <span className="text-xs text-[var(--ok)]">● Live</span>
-                </div>
-                <div className="text-2xl font-bold text-[var(--accent)]">
-                  {model.metrics.latency}
-                </div>
-                <div className="mt-2 h-8">
-                  <svg className="w-full h-full">
-                    <polyline
-                      points={performanceData.slice(-10).map((d, i) => `${i * 12},${32 - d.latency / 3}`).join(' ')}
-                      fill="none"
-                      stroke="var(--accent)"
-                      strokeWidth="2"
-                      opacity="0.5"
-                    />
-                  </svg>
-                </div>
-              </motion.div>
+              {viewMode === 'compare' ? (
+                // Compare mode: Show metrics for both simulations
+                <>
+                  {/* Left simulation metrics */}
+                  <motion.div
+                    className="glass-panel rounded-xl p-4 metric-glow"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Latency</span>
+                      <span className="text-xs px-2 py-0.5 bg-[var(--accent)] text-white rounded-full">Sol {state.solution.slice(1)}</span>
+                    </div>
+                    <div className="text-2xl font-bold text-[var(--accent)]">
+                      {model.metrics.latency}
+                    </div>
+                    <div className="mt-2 h-8">
+                      <svg className="w-full h-full">
+                        <polyline
+                          points={performanceData.slice(-10).map((d, i) => `${i * 12},${32 - d.latency / 3}`).join(' ')}
+                          fill="none"
+                          stroke="var(--accent)"
+                          strokeWidth="2"
+                          opacity="0.5"
+                        />
+                      </svg>
+                    </div>
+                  </motion.div>
 
-              <motion.div
-                className="glass-panel rounded-xl p-4"
-                whileHover={{ scale: 1.02 }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Throughput</span>
-                  <span className="text-xs text-[var(--warn)]">▲ 12%</span>
-                </div>
-                <div className="text-2xl font-bold text-[var(--warn)]">
-                  {Math.round(performanceData[performanceData.length - 1]?.throughput * 5 + 400) || 470} MB/s
-                </div>
+                  <motion.div
+                    className="glass-panel rounded-xl p-4"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Throughput</span>
+                      <span className="text-xs px-2 py-0.5 bg-[var(--accent)] text-white rounded-full">Sol {state.solution.slice(1)}</span>
+                    </div>
+                    <div className="text-2xl font-bold text-[var(--warn)]">
+                      {model.metrics.throughput}
+                    </div>
                 <div className="mt-2 flex items-end gap-1 h-8">
                   {[...Array(8)].map((_, i) => {
                     // Use deterministic height based on index
