@@ -23,6 +23,8 @@ export default function CRCWorkflowVisualizer() {
   const [zoom, setZoom] = useState(1);
   const [showMinimap, setShowMinimap] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'throughput' | 'cpu'>('latency');
+  const [currentStage, setCurrentStage] = useState<string>('Ready');
+  const [animationProgress, setAnimationProgress] = useState(100); 
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,74 @@ export default function CRCWorkflowVisualizer() {
   const model = useMemo(() => buildWorkflowModel(state), [state]);
   const compareState = useMemo(() => ({ ...state, solution: compareSolution }), [state, compareSolution]);
   const compareModel = useMemo(() => buildWorkflowModel(compareState), [compareState]);
+
+  // Animation logic
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+
+    // Reset to 0 when starting
+    setAnimationProgress(0);
+    
+    const startTime = Date.now();
+    const duration = 5000 / playbackSpeed; // Adjust duration based on playback speed
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min((elapsed / duration) * 100, 100);
+      setAnimationProgress(progress);
+      
+      if (progress < 100) {
+        requestAnimationFrame(animate);
+      } else {
+        setIsPlaying(false);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }, [isPlaying, playbackSpeed]);
+
+  // Determine current stage based on animation progress
+  useEffect(() => {
+    const tmax = model.tmax || 100;
+    const progress = (animationProgress / 100) * tmax;
+    let stage = 'Initializing';
+
+    const activeActivities = model.activities.filter(a => progress >= a.t0 && progress <= a.t1);
+    const activeMessages = model.events.filter(e => progress >= e.t0 && progress <= e.t1);
+
+    if (activeActivities.length > 0) {
+      // SSD aggregation stage (s3)
+      const aggSSD = activeActivities.find(a => (a.label || '').includes('Aggregate'));
+      if (aggSSD) {
+        stage = `SSD Aggregation (${aggSSD.lane.toUpperCase()})`;
+      }
+
+      // Host aggregation stage (s2) – host activity exists with empty label after our label cleanup
+      const hostAct = activeActivities.find(a => a.lane === 'host');
+      if (hostAct && !(hostAct.label || '').includes('Note')) {
+        stage = 'Host Aggregation';
+      }
+
+      // SSD compute stage
+      const ssdAct = activeActivities.find(a => a.lane.startsWith('ssd') && /CRC compute/i.test(a.label || ''));
+      if (ssdAct) {
+        const k = ssdAct.lane.replace('ssd', '');
+        stage = `SSD${k} CRC compute`;
+      }
+    } else if (activeMessages.length > 0) {
+      const msg = activeMessages[0];
+      if (/CRC_Calc/.test(msg.label)) stage = 'Sending CRC request';
+      else if (/Completion/.test(msg.label)) stage = 'Receiving CRC result';
+      else if (/Retry/.test(msg.label)) stage = 'Retrying request';
+      else if (/CRC_Combine/.test(msg.label)) stage = 'Sending aggregation request';
+    }
+
+    if (progress >= tmax * 0.95) stage = 'Validation complete';
+
+    setCurrentStage(stage);
+  }, [animationProgress, model]);
 
   // Smart tooltip positioning
   const updateTooltip = useCallback((e: React.MouseEvent, content: string) => {
@@ -572,22 +642,20 @@ export default function CRCWorkflowVisualizer() {
                     whileHover={{ scale: 1.02 }}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">CPU Usage</span>
-                      <span className="text-xs text-[var(--ok)]">Low</span>
+                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Current Stage</span>
+                      <span className="text-xs text-[var(--accent)]">● Active</span>
                     </div>
-                    <div className="text-2xl font-bold text-[var(--ok)]">
-                      {Math.round(performanceData[performanceData.length - 1]?.cpu) || 25}%
+                    <div className="text-lg font-bold text-[var(--fg)] truncate">
+                      {currentStage}
                     </div>
                     <div className="mt-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 flex gap-1">
-                          {[...Array(10)].map((_, i) => (
-                            <div
-                              key={i}
-                              className={`flex-1 h-4 rounded-sm ${i < 3 ? 'bg-[var(--ok)]' : 'bg-[var(--panel-2)]'}`}
-                            />
-                          ))}
-                        </div>
+                      <div className="w-full h-2 bg-[var(--panel-2)] rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full bg-gradient-to-r from-[var(--accent)] to-[var(--ok)]"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${animationProgress}%` }}
+                          transition={{ duration: 0.3, ease: 'linear' }}
+                        />
                       </div>
                     </div>
                   </motion.div>
@@ -636,6 +704,10 @@ export default function CRCWorkflowVisualizer() {
                         isPlaying={isPlaying}
                         onPlayComplete={() => setIsPlaying(false)}
                         playbackSpeed={playbackSpeed}
+                        currentStage={currentStage}
+                        setCurrentStage={setCurrentStage}
+                        animationProgress={animationProgress}
+                        setAnimationProgress={setAnimationProgress}
                       />
                     </div>
                   </div>
@@ -700,6 +772,10 @@ export default function CRCWorkflowVisualizer() {
                         isPlaying={isPlaying}
                         onPlayComplete={() => {}}
                         playbackSpeed={playbackSpeed}
+                        currentStage={currentStage}
+                        setCurrentStage={setCurrentStage}
+                        animationProgress={animationProgress}
+                        setAnimationProgress={setAnimationProgress}
                       />
                     </div>
                     
@@ -732,6 +808,10 @@ export default function CRCWorkflowVisualizer() {
                         isPlaying={isPlaying}
                         onPlayComplete={() => {}}
                         playbackSpeed={playbackSpeed}
+                        currentStage={currentStage}
+                        setCurrentStage={setCurrentStage}
+                        animationProgress={animationProgress}
+                        setAnimationProgress={setAnimationProgress}
                       />
                     </div>
                   </div>
