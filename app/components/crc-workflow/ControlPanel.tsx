@@ -328,7 +328,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         
         <SliderInput
           id="hostc"
-          label="Host Combine (all shards)"
+          label="Host Combine agg time/shard"
           value={state.hostc}
           onChange={(v) => setState({ ...state, hostc: v })}
           min={5}
