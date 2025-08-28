@@ -39,7 +39,7 @@ export default function AnimatedSVGDiagram({
   const lifelineBottom = laneH - 14;
   const gridH = lanes.length * laneH + 20;
   const leftPad = 160;
-  const rightPad = 24;
+  const rightPad = 200;  // Increased from 24 to 200 for better visual padding
   const topPad = 16;
   const bottomPad = 24;
   const widthPx = 1400;
