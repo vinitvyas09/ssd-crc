@@ -30,18 +30,18 @@ function SliderInput({ id, label, value, onChange, min, max, step = 1, unit = ''
   return (
     <div className="my-4">
       <div className="flex justify-between items-center mb-2">
-        <label htmlFor={id} className="text-sm text-[var(--fg)]">{label}</label>
-        <div className="flex items-center gap-2">
+        <label htmlFor={id} className="text-xs text-[var(--fg)]">{label}</label>
+        <div className="flex items-center gap-1">
           <input
             type="number"
             value={value}
             onChange={(e) => onChange(clamp(parseFloat(e.target.value || '0'), min, max))}
-            className="w-20 px-2 py-1 bg-[var(--panel-2)] border border-[var(--grid)] rounded-md text-[var(--fg)] text-sm text-right"
+            className="w-16 px-1 py-0.5 bg-[var(--panel-2)] border border-[var(--grid)] rounded-md text-[var(--fg)] text-xs text-right"
             min={min}
             max={max}
             step={step}
           />
-          {unit && <span className="text-xs text-[var(--muted)]">{unit}</span>}
+          {unit && <span className="text-[10px] text-[var(--muted)]">{unit}</span>}
         </div>
       </div>
       <div className="relative">
@@ -75,7 +75,7 @@ function ToggleSwitch({ id, label, checked, onChange }: {
       onClick={() => onChange(!checked)}
       whileHover={{ x: 2 }}
     >
-      <label htmlFor={id} className="text-sm cursor-pointer select-none">{label}</label>
+      <label htmlFor={id} className="text-xs cursor-pointer select-none">{label}</label>
       <div className="relative">
         <input
           id={id}
@@ -102,7 +102,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
   
   return (
     <motion.div
-      className="w-80 bg-[var(--panel)] border border-[var(--grid)] rounded-xl shadow-xl p-5 sticky top-4 max-h-[calc(100vh-32px)] overflow-auto"
+      className="bg-[var(--panel)] p-4 h-full overflow-y-auto"
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
     >
@@ -169,7 +169,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
           Select Architecture
         </h2>
         
@@ -179,7 +179,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
               key={key}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className={`solution-card p-3 rounded-lg border ${
+              className={`solution-card p-2 rounded-lg border ${
                 state.solution === key 
                   ? 'active border-[var(--accent)]' 
                   : 'bg-[var(--panel-2)] border-[var(--grid)]'
@@ -190,7 +190,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
               transition={{ delay: idx * 0.05 }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{label}</span>
+                <span className="text-xs font-medium">{label}</span>
                 {state.solution === key && (
                   <motion.span
                     initial={{ scale: 0 }}
@@ -213,7 +213,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         transition={{ delay: 0.2 }}
         className="mt-6"
       >
-        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
           Workflow Parameters
         </h2>
         
@@ -276,7 +276,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         transition={{ delay: 0.3 }}
         className="mt-6"
       >
-        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
           Timing Model (µs)
         </h2>
         
@@ -332,7 +332,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         transition={{ delay: 0.4 }}
         className="mt-6 space-y-1"
       >
-        <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
           Display Options
         </h2>
         
