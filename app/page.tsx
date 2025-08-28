@@ -74,7 +74,7 @@ export default function Home() {
         {/* Header */}
         <header className="pt-20 pb-12">
           <h1 className={`text-4xl font-light ${isDark ? 'text-zinc-100' : 'text-gray-900'}`}>
-            CRC Validation for Computational Storage
+            CRC Validation with SSD Offload
           </h1>
           <p className={`mt-4 text-lg ${isDark ? 'text-zinc-500' : 'text-gray-600'} max-w-3xl`}>
             Explore three architectural approaches for offloading CRC computation from hosts to SSDs, 
