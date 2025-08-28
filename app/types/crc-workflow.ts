@@ -35,6 +35,7 @@ export interface Metrics {
   latency: string;
   fanout: string;
   notes: string;
+  throughput: string;
 }
 
 export interface WorkflowModel {
