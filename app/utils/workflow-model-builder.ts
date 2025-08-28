@@ -238,6 +238,10 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
   );
 
   const totalOps = state.W * segs;
+  const totalBytes = state.W * state.chunkBytes;
+  // Calculate throughput in MB/s (total bytes / latency in microseconds * 1000000 / 1024 / 1024)
+  const throughput = lastT > 0 ? (totalBytes / lastT * 1000000 / 1024 / 1024).toFixed(1) : '0';
+  
   const metrics: Metrics = {
     latency: lastT.toFixed(1) + ' µs (model)',
     fanout: state.solution === 's1'
@@ -249,7 +253,8 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
       ? `Sequential processing: ${segs} segment(s) per SSD, seeded chain.`
       : state.solution === 's2'
       ? `Parallel compute; host combines ${segs > 1 ? 'segments then SSDs' : 'SSDs'} in log₂ stages.`
-      : `Parallel compute; SSD${state.aggIndex} aggregates all ${totalOps} CRCs.`
+      : `Parallel compute; SSD${state.aggIndex} aggregates all ${totalOps} CRCs.`,
+    throughput: `${throughput} MB/s`
   };
 
   return {
