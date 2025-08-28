@@ -138,29 +138,34 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     // Stage 1: Combine segments within each SSD (if segments > 1)
     if (segs > 1) {
       let segCount = segs;
+      let segStageIdx = 1;
+      const segStagesTotal = Math.ceil(Math.log2(segs));
       while (segCount > 1) {
-        const ops = Math.floor(segCount / 2);
-        for (let i = 0; i < state.W; i++) {
-          for (let j = 0; j < ops; j++) {
-            activity('host', tStage + j * 2, tStage + j * 2 + hostCombine, '');
-          }
-        }
+        const label = state.showLabels
+          ? `Host combine segments (stage ${segStageIdx}/${segStagesTotal})`
+          : '';
+        // Render a single labeled bar per stage to avoid overlapping duplicates
+        activity('host', tStage, tStage + hostCombine, label);
         tStage += hostCombine + 10;
         segCount = Math.ceil(segCount / 2);
+        segStageIdx++;
       }
     }
     
     // Stage 2: Combine across SSDs using log₂(W) stages
     let count = state.W;
+    let crossStageIdx = 1;
+    const crossStagesTotal = Math.ceil(Math.log2(state.W));
     while (count > 1) {
-      const ops = Math.floor(count / 2);
       const stageStart = tStage;
-      for (let j = 0; j < ops; j++) {
-        // Show combines happening in parallel within each stage
-        activity('host', stageStart, stageStart + hostCombine, ``);
-      }
+      const label = state.showLabels
+        ? `Host combine across SSDs (stage ${crossStageIdx}/${crossStagesTotal})`
+        : '';
+      // Render a single labeled bar per stage to avoid overlapping duplicates
+      activity('host', stageStart, stageStart + hostCombine, label);
       tStage = stageStart + hostCombine + 10;
       count = Math.ceil(count / 2);
+      crossStageIdx++;
     }
     
     tmax = tStage + 30;
