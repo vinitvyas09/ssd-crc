@@ -222,27 +222,22 @@ export default function AnimatedSVGDiagram({
               <rect x="0" y="0" width={widthPx} height={laneH} fill="rgba(89,168,255,0.03)" />
             )}
 
-            {/* Left indicator column with gradient background */}
-            <defs>
-              <linearGradient id={`animated-gradient-${lane.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor={isHost ? '#59a8ff' : '#24d28a'} stopOpacity="0.15" />
-                <stop offset="100%" stopColor={isHost ? '#59a8ff' : '#24d28a'} stopOpacity="0.05" />
-              </linearGradient>
-            </defs>
-            <rect x="0" y="0" width="150" height={laneH} fill={`url(#animated-gradient-${lane.id})`} />
-            <rect x="0" y="0" width="3" height={laneH} fill={isHost ? '#59a8ff' : '#24d28a'} opacity="0.6" />
-            <line x1="150" x2="150" y1="0" y2={laneH} stroke="#4a5568" strokeWidth="1" opacity="0.5" />
+            {/* Left indicator column with solid background */}
+            <rect x="0" y="0" width="150" height={laneH} fill="#1a1f2e" />
+            <rect x="0" y="0" width="150" height={laneH} fill={isHost ? 'rgba(89,168,255,0.1)' : 'rgba(36,210,138,0.1)'} />
+            <rect x="0" y="0" width="3" height={laneH} fill={isHost ? '#59a8ff' : '#24d28a'} />
+            <line x1="150" x2="150" y1="0" y2={laneH} stroke="#4a5568" strokeWidth="1.5" />
 
             {/* Icon + labels */}
-            <g transform="translate(14, 22)">
+            <g transform="translate(14, 35)">
               {isHost && (
-                <text className="text-[18px]" fill="currentColor" style={{ color: '#59a8ff' }} x="0" y="2">🖥️</text>
+                <text fontSize="20" x="0" y="0">🖥️</text>
               )}
               {isSSD && (
-                <text className="text-[18px]" fill="currentColor" style={{ color: '#24d28a' }} x="0" y="2">💾</text>
+                <text fontSize="20" x="0" y="0">💾</text>
               )}
-              <text x="30" y="0" className="text-[14px] font-semibold" fill={isHost ? '#59a8ff' : '#24d28a'} style={{ fontWeight: 600 }}>{lane.label}</text>
-              <text x="30" y="16" className="text-[11px]" fill="#94a3b8" style={{ opacity: 0.9 }}>{isHost ? 'Controller' : 'Storage Device'}</text>
+              <text x="32" y="-2" fontSize="15" fontWeight="bold" fill="#ffffff">{lane.label}</text>
+              <text x="32" y="16" fontSize="12" fill="#9ca3af">{isHost ? 'Controller' : 'Storage Device'}</text>
             </g>
 
             {/* Lifelines */}
