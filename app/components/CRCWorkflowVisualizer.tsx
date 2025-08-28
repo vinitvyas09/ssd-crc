@@ -434,12 +434,12 @@ export default function CRCWorkflowVisualizer() {
         </div>
       </motion.header>
 
-      <div className="flex h-[calc(100vh-64px)]">
+      <div className="flex h-[calc(100vh-48px)]">
         {/* Control Panel */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="w-80 border-r border-[var(--grid)] bg-[var(--panel)] overflow-y-auto"
+          className="w-64 border-r border-[var(--grid)] bg-[var(--panel)] overflow-y-auto"
         >
           <ControlPanel state={state} setState={setState} />
         </motion.div>
@@ -450,9 +450,9 @@ export default function CRCWorkflowVisualizer() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="px-6 py-4 bg-gradient-to-b from-[var(--panel)] to-transparent border-b border-[var(--grid)]"
+            className="px-4 py-3 bg-gradient-to-b from-[var(--panel)] to-transparent border-b border-[var(--grid)]"
           >
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-3">
               {viewMode === 'compare' ? (
                 // Compare mode: Show metrics for both simulations
                 <>
