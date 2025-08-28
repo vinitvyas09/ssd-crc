@@ -134,8 +134,11 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     // Host aggregation time scales with log₂ of shards (stripe width W)
     const hostAggStages = Math.ceil(Math.log2(Math.max(1, state.W)));
     const hostAggTime = Math.max(1, hostCombine * hostAggStages);
-    const aggLabel = state.showLabels ? 'Combine CRC' : '';
-    activity('host', tStartAgg, tStartAgg + hostAggTime, aggLabel);
+    const totalElemsHostDisplay = Math.max(1, state.W * segs);
+    const hostLabel = state.showLabels 
+      ? `Combine CRC (log2(W×segments)=${Math.ceil(Math.log2(totalElemsHostDisplay))} stages)`
+      : '';
+    activity('host', tStartAgg, tStartAgg + hostAggTime, hostLabel);
     
     tmax = tStartAgg + hostAggTime + 30;
     note('host', tmax - 20, `Compare Calculated_CRC vs Golden_CRC`);
@@ -197,7 +200,10 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     // Aggregation time scales with log₂ of total shards (reduction tree depth)
     const aggStages = Math.ceil(Math.log2(totalElems));
     const aggTime = Math.max(5, aggPerElem * aggStages);
-    activity(aggId, tAggReq + lat, tAggReq + lat + aggTime, `Aggregate ${totalElems} CRCs`);
+    const aggActLabel = state.showLabels 
+      ? `Aggregate ${totalElems} CRCs (log2=${aggStages} stages)`
+      : `Aggregate ${totalElems} CRCs`;
+    activity(aggId, tAggReq + lat, tAggReq + lat + aggTime, aggActLabel);
     
     const tDone = tAggReq + lat + aggTime + lat;
     msg(aggId, 'host', tAggReq + lat + aggTime, tDone, `Completion(Final_CRC)`, 'ok');
