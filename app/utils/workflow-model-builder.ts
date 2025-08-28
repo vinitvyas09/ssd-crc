@@ -131,44 +131,11 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     
     const tStartAgg = allComplete + 10;
     
-    // Host needs to combine all CRCs from all segments across all SSDs
-    // First combine segments within each SSD, then combine across SSDs
-    let tStage = tStartAgg;
+    // Host performs a single aggregation step over all partial CRCs
+    const aggLabel = state.showLabels ? 'Host combine all CRCs' : '';
+    activity('host', tStartAgg, tStartAgg + hostCombine, aggLabel);
     
-    // Stage 1: Combine segments within each SSD (if segments > 1)
-    if (segs > 1) {
-      let segCount = segs;
-      let segStageIdx = 1;
-      const segStagesTotal = Math.ceil(Math.log2(segs));
-      while (segCount > 1) {
-        const label = state.showLabels
-          ? `Host combine segments (stage ${segStageIdx}/${segStagesTotal})`
-          : '';
-        // Render a single labeled bar per stage to avoid overlapping duplicates
-        activity('host', tStage, tStage + hostCombine, label);
-        tStage += hostCombine + 10;
-        segCount = Math.ceil(segCount / 2);
-        segStageIdx++;
-      }
-    }
-    
-    // Stage 2: Combine across SSDs using log₂(W) stages
-    let count = state.W;
-    let crossStageIdx = 1;
-    const crossStagesTotal = Math.ceil(Math.log2(state.W));
-    while (count > 1) {
-      const stageStart = tStage;
-      const label = state.showLabels
-        ? `Host combine across SSDs (stage ${crossStageIdx}/${crossStagesTotal})`
-        : '';
-      // Render a single labeled bar per stage to avoid overlapping duplicates
-      activity('host', stageStart, stageStart + hostCombine, label);
-      tStage = stageStart + hostCombine + 10;
-      count = Math.ceil(count / 2);
-      crossStageIdx++;
-    }
-    
-    tmax = tStage + 30;
+    tmax = tStartAgg + hostCombine + 30;
     note('host', tmax - 20, `Compare Calculated_CRC vs Golden_CRC`);
     
   } else if (state.solution === 's3') {
@@ -252,12 +219,12 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     fanout: state.solution === 's1'
       ? `${totalOps} sequential CRC ops (${state.W} SSDs × ${segs} segments)`
       : state.solution === 's2'
-      ? `${totalOps} parallel CRC ops + host combine (log₂ stages)`
+      ? `${totalOps} parallel CRC ops + single host combine`
       : `${totalOps} parallel CRC ops + SSD${state.aggIndex} aggregation`,
     notes: state.solution === 's1'
       ? `Sequential processing: ${segs} segment(s) per SSD, seeded chain.`
       : state.solution === 's2'
-      ? `Parallel compute; host combines ${segs > 1 ? 'segments then SSDs' : 'SSDs'} in log₂ stages.`
+      ? `Parallel compute across SSDs; a single host operation combines all partial CRCs.`
       : `Parallel compute; SSD${state.aggIndex} aggregates all ${totalOps} CRCs.`,
     throughput: `${throughput} MB/s`
   };
