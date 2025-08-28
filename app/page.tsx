@@ -2,10 +2,21 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [isDark, setIsDark] = useState(true);
+
+  useEffect(() => {
+    // Check if user prefers dark mode
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsDark(mediaQuery.matches);
+    
+    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
 
   const solutions = [
     {
@@ -41,11 +52,11 @@ export default function Home() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#0b0f14] via-[#111821] to-[#0e141b]">
+    <main className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-gradient-to-br from-[#0b0f14] via-[#111821] to-[#0e141b]' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'}`}>
       <div
         className="absolute inset-0 opacity-15 pointer-events-none z-0"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='grid' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='%23233040' stroke-width='0.5' opacity='0.25'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23grid)' /%3E%3C/svg%3E")`
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='grid' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='${isDark ? '%23233040' : '%23e5e7eb'}' stroke-width='0.5' opacity='0.25'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23grid)' /%3E%3C/svg%3E")`
         }}
       ></div>
 
@@ -57,7 +68,7 @@ export default function Home() {
           className="mx-auto max-w-4xl text-center mb-12 sm:mb-16"
         >
           <motion.h1
-            className="text-[28px] sm:text-4xl md:text-5xl lg:text-[56px] font-extrabold tracking-tight bg-gradient-to-r from-[#a8d4ff] via-[#e6f1ff] to-[#a8d4ff] bg-clip-text text-transparent leading-tight sm:leading-tight md:leading-[1.1]"
+            className={`text-[28px] sm:text-4xl md:text-5xl lg:text-[56px] font-extrabold tracking-tight bg-gradient-to-r ${isDark ? 'from-[#a8d4ff] via-[#e6f1ff] to-[#a8d4ff]' : 'from-blue-600 via-blue-500 to-blue-600'} bg-clip-text text-transparent leading-tight sm:leading-tight md:leading-[1.1]`}
             animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
             transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
             style={{ backgroundSize: "250% 250%" }}
@@ -65,7 +76,7 @@ export default function Home() {
             CRC Validation Workflows
           </motion.h1>
 
-          <p className="mt-4 sm:mt-6 text-[13px] sm:text-base md:text-lg text-[#b8c6d8] leading-relaxed md:leading-8 px-0 sm:px-6">
+          <p className={`mt-4 sm:mt-6 text-[13px] sm:text-base md:text-lg ${isDark ? 'text-[#b8c6d8]' : 'text-gray-600'} leading-relaxed md:leading-8 px-0 sm:px-6`}>
             Explore three approaches to offload CRC computation from hosts to SSDs in erasure‑coded systems.
             Compare performance, scalability, and implementation complexity.
           </p>
@@ -107,7 +118,7 @@ export default function Home() {
                 className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"
                 style={{ background: `radial-gradient(circle at center, ${solution.color}40, transparent)` }}
               />
-              <div className="relative rounded-2xl border border-[#233040] bg-gradient-to-b from-[#111821] to-[#0e141b] p-6 sm:p-7 transition-all duration-300 group-hover:border-[#2a3a4d] transform group-hover:-translate-y-1 flex flex-col h-full">
+              <div className={`relative rounded-2xl border ${isDark ? 'border-[#233040] bg-gradient-to-b from-[#111821] to-[#0e141b] group-hover:border-[#2a3a4d]' : 'border-gray-200 bg-gradient-to-b from-white to-gray-50 group-hover:border-gray-300'} p-6 sm:p-7 transition-all duration-300 transform group-hover:-translate-y-1 flex flex-col h-full`}>
                 <div className="mb-4 sm:mb-6">
                   <motion.div 
                     className="inline-flex items-center justify-center w-12 h-12 rounded-lg mb-3 sm:mb-4"
@@ -117,7 +128,7 @@ export default function Home() {
                   >
                     <span className="text-xl font-bold" style={{ color: solution.color }}>{solution.number}</span>
                   </motion.div>
-                  <h2 className="text-[17px] sm:text-xl font-semibold text-[#e6eef7] leading-snug">{solution.title}</h2>
+                  <h2 className={`text-[17px] sm:text-xl font-semibold ${isDark ? 'text-[#e6eef7]' : 'text-gray-900'} leading-snug`}>{solution.title}</h2>
                 </div>
                 
                 <ul className="space-y-3 sm:space-y-4 flex-grow">
@@ -137,7 +148,7 @@ export default function Home() {
                       >
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-[13px] sm:text-[15px] leading-relaxed text-[#aab8ca]">{feature}</span>
+                      <span className={`text-[13px] sm:text-[15px] leading-relaxed ${isDark ? 'text-[#aab8ca]' : 'text-gray-600'}`}>{feature}</span>
                     </motion.li>
                   ))}
                 </ul>
@@ -150,17 +161,17 @@ export default function Home() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-14 sm:mt-20 rounded-2xl border border-[#233040] bg-gradient-to-b from-[#111821] to-[#0e141b] p-6 sm:p-10 relative overflow-hidden mx-2 sm:mx-0"
+          className={`mt-14 sm:mt-20 rounded-2xl border ${isDark ? 'border-[#233040] bg-gradient-to-b from-[#111821] to-[#0e141b]' : 'border-gray-200 bg-gradient-to-b from-white to-gray-50'} p-6 sm:p-10 relative overflow-hidden mx-2 sm:mx-0`}
         >
           <div className="absolute -top-10 -right-10 w-72 h-72 bg-gradient-to-br from-[#59a8ff] to-transparent opacity-10 rounded-full blur-3xl"></div>
           <div className="relative">
-            <h3 className="text-base sm:text-xl font-semibold text-[#e6eef7] mb-3 sm:mb-4">Technical Deep Dive: CRC64_COMBINE</h3>
-            <p className="text-[13px] sm:text-base text-[#9fb0c4] leading-relaxed max-w-4xl">
+            <h3 className={`text-base sm:text-xl font-semibold ${isDark ? 'text-[#e6eef7]' : 'text-gray-900'} mb-3 sm:mb-4`}>Technical Deep Dive: CRC64_COMBINE</h3>
+            <p className={`text-[13px] sm:text-base ${isDark ? 'text-[#9fb0c4]' : 'text-gray-600'} leading-relaxed max-w-4xl`}>
               The combination step shifts CRC(A) by 8·len(B) bits in GF(2) and XORs with CRC(B), enabling
               correct aggregation without re‑reading data. This property powers the parallel models
               (Solutions 2 and 3) for efficient distributed computation.
             </p>
-            <div className="mt-5 sm:mt-6 flex items-start sm:items-center gap-3 text-xs sm:text-sm text-[#617185]">
+            <div className={`mt-5 sm:mt-6 flex items-start sm:items-center gap-3 text-xs sm:text-sm ${isDark ? 'text-[#617185]' : 'text-gray-500'}`}>
               <svg className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 mt-0.5 sm:mt-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
