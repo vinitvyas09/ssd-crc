@@ -132,7 +132,7 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     const tStartAgg = allComplete + 10;
     
     // Host performs a single aggregation step over all partial CRCs
-    const aggLabel = state.showLabels ? 'Host combine all CRCs' : '';
+    const aggLabel = state.showLabels ? 'Combine CRCs' : '';
     activity('host', tStartAgg, tStartAgg + hostCombine, aggLabel);
     
     tmax = tStartAgg + hostCombine + 30;
