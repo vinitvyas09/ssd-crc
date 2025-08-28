@@ -92,7 +92,7 @@ export default function AnimatedSVGDiagram({
           orient="auto-start-reverse"
           markerUnits="strokeWidth"
         >
-          <path d="M 0 0 L 10 4 L 0 8 z" fill="#00d4ff" />
+          <path d="M 0 0 L 10 4 L 0 8 z" fill="#5eb3d6" />
         </marker>
         <marker
           id="arrowErr"
@@ -123,17 +123,17 @@ export default function AnimatedSVGDiagram({
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
         </linearGradient>
         
-        {/* Animated gradient for CRC compute activities */}
+        {/* Animated gradient for CRC compute activities - more subtle */}
         <linearGradient id="crcComputeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
           <animate attributeName="x1" values="0%;100%;0%" dur="3s" repeatCount="indefinite" />
-          <stop offset="0%" stopColor="#00d4ff">
-            <animate attributeName="stop-color" values="#00d4ff;#0099ff;#00d4ff" dur="3s" repeatCount="indefinite" />
+          <stop offset="0%" stopColor="#5eb3d6">
+            <animate attributeName="stop-color" values="#5eb3d6;#4a9bc2;#5eb3d6" dur="3s" repeatCount="indefinite" />
           </stop>
-          <stop offset="50%" stopColor="#0066ff">
-            <animate attributeName="stop-color" values="#0066ff;#00d4ff;#0066ff" dur="3s" repeatCount="indefinite" />
+          <stop offset="50%" stopColor="#4288b5">
+            <animate attributeName="stop-color" values="#4288b5;#5eb3d6;#4288b5" dur="3s" repeatCount="indefinite" />
           </stop>
-          <stop offset="100%" stopColor="#9945ff">
-            <animate attributeName="stop-color" values="#9945ff;#0066ff;#9945ff" dur="3s" repeatCount="indefinite" />
+          <stop offset="100%" stopColor="#6b7cb8">
+            <animate attributeName="stop-color" values="#6b7cb8;#4288b5;#6b7cb8" dur="3s" repeatCount="indefinite" />
           </stop>
         </linearGradient>
         
@@ -303,8 +303,8 @@ export default function AnimatedSVGDiagram({
           let textColor = "#cfe3ff";
           
           if (isCRCCompute) {
-            fillColor = isActive ? "url(#crcComputeGradient)" : "#0066ff";
-            strokeColor = isActive ? '#00d4ff' : '#0099ff';
+            fillColor = isActive ? "url(#crcComputeGradient)" : "#4288b5";
+            strokeColor = isActive ? '#5eb3d6' : '#4a9bc2';
             filterEffect = isActive ? 'url(#pulseGlow)' : '';
             textColor = "#ffffff";
           } else if (isHostAgg) {
@@ -350,7 +350,7 @@ export default function AnimatedSVGDiagram({
                   rx="8"
                   ry="8"
                   fill="none"
-                  stroke={isCRCCompute ? "#00d4ff" : "#22d39c"}
+                  stroke={isCRCCompute ? "#5eb3d6" : "#22d39c"}
                   strokeWidth="1"
                   opacity="0.3"
                   animate={{ 
@@ -404,7 +404,7 @@ export default function AnimatedSVGDiagram({
           const visibility = getItemVisibility(event.t0, event.t1);
           
           const strokeColor = event.status === 'err' ? '#ff6b6b' : 
-                            event.status === 'warn' ? '#ffcc40' : '#00d4ff';
+                            event.status === 'warn' ? '#ffcc40' : '#5eb3d6';
           const markerEnd = event.status === 'err' ? 'url(#arrowErr)' :
                            event.status === 'warn' ? 'url(#arrowWarn)' : 'url(#arrowOk)';
 
@@ -519,7 +519,7 @@ export default function AnimatedSVGDiagram({
             y={topPad}
             width="2"
             height={gridH - 20}
-            fill="#00d4ff"
+            fill="#5eb3d6"
             opacity="0.9"
             initial={{ opacity: 0 }}
             animate={{ opacity: [0.6, 1, 0.6] }}
