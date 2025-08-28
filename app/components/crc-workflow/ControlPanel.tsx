@@ -71,12 +71,31 @@ function ToggleSwitch({ id, label, checked, onChange }: {
 }) {
   return (
     <motion.div 
-      className="flex items-center justify-between py-3 px-3 rounded-lg hover:bg-[var(--panel-2)] transition-colors cursor-pointer"
-      onClick={() => onChange(!checked)}
+      className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-[var(--panel-2)] transition-colors"
       whileHover={{ x: 2 }}
     >
-      <label htmlFor={id} className="text-xs cursor-pointer select-none">{label}</label>
-      <div className="relative">
+      <label htmlFor={id} className="text-xs cursor-pointer select-none flex-1">{label}</label>
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+        style={{
+          backgroundColor: checked ? 'var(--accent)' : 'var(--grid)',
+        }}
+      >
+        <span className="sr-only">{label}</span>
+        <motion.span
+          className="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg ring-0"
+          animate={{
+            x: checked ? 24 : 4,
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 500,
+            damping: 30,
+          }}
+        />
         <input
           id={id}
           type="checkbox"
@@ -84,15 +103,7 @@ function ToggleSwitch({ id, label, checked, onChange }: {
           onChange={(e) => onChange(e.target.checked)}
           className="sr-only"
         />
-        <div className={`w-11 h-6 rounded-full transition-colors ${checked ? 'bg-[var(--accent)]' : 'bg-[var(--grid)]'}`}>
-          <motion.div 
-            className="w-5 h-5 bg-[var(--bg)] rounded-full shadow-md"
-            animate={{ x: checked ? 20 : 2 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            style={{ marginTop: '2px' }}
-          />
-        </div>
-      </div>
+      </button>
     </motion.div>
   );
 }
