@@ -192,10 +192,9 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
       : ``;
     msg('host', aggId, tAggReq, tAggReq + lat, listLabel, 'ok');
     
-    // Aggregation time based on total elements (each segment's CRC needs combining)
-    // Use log₂ stages similar to host aggregation but on SSD
+    // Aggregation time scales with log₂ of total shards (reduction tree depth)
     const aggStages = Math.ceil(Math.log2(totalElems));
-    const aggTime = Math.max(5, aggPerElem * aggStages * 2); // Factor in shift+XOR ops per stage
+    const aggTime = Math.max(5, aggPerElem * aggStages);
     activity(aggId, tAggReq + lat, tAggReq + lat + aggTime, `Aggregate ${totalElems} CRCs`);
     
     const tDone = tAggReq + lat + aggTime + lat;
