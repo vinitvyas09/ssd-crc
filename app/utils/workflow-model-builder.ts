@@ -136,7 +136,7 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     const hostAggTime = Math.max(1, hostCombine * hostAggStages);
     const totalElemsHostDisplay = Math.max(1, state.W * segs);
     const hostLabel = state.showLabels 
-      ? `Combine CRC (log2(W×segments)=${Math.ceil(Math.log2(totalElemsHostDisplay))} stages)`
+      ? `Combine CRC (${Math.ceil(Math.log2(totalElemsHostDisplay))} stages)`
       : '';
     activity('host', tStartAgg, tStartAgg + hostAggTime, hostLabel);
     
