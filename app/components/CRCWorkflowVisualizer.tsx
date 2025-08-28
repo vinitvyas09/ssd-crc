@@ -674,11 +674,11 @@ export default function CRCWorkflowVisualizer() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="h-full p-6"
+                  className="h-full p-3"
                 >
-                  <div className="h-full glass-panel rounded-2xl p-4 overflow-auto">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold">
+                  <div className="h-full glass-panel rounded-2xl p-2 overflow-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-sm font-semibold">
                         {SOLUTIONS[state.solution]} Architecture
                       </h2>
                       <div className="flex items-center gap-2">
