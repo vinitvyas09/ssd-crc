@@ -212,6 +212,14 @@ export default function AnimatedSVGDiagram({
               style={{ opacity: hoveredItem === `lane-${i}` ? 0.85 : 1, transition: 'opacity 0.2s' }}
             />
 
+            {/* Subtle lane tint to differentiate Host vs SSDs */}
+            {isSSD && (
+              <rect x="0" y="0" width={widthPx} height={laneH} fill="rgba(36,210,138,0.03)" />
+            )}
+            {isHost && (
+              <rect x="0" y="0" width={widthPx} height={laneH} fill="rgba(89,168,255,0.03)" />
+            )}
+
             {/* Left indicator column */}
             <rect x="0" y="0" width="150" height={laneH} fill={isHost ? 'rgba(89,168,255,0.06)' : 'rgba(36,210,138,0.06)'} />
             <line x1="150" x2="150" y1="0" y2={laneH} stroke="var(--grid)" strokeWidth="1" opacity="0.35" />
@@ -430,7 +438,7 @@ export default function AnimatedSVGDiagram({
 
       {/* Stage indicator (bottom-right), minimizable */}
       <motion.g
-        transform={`translate(${widthPx - 280}, ${gridH + topPad - 60})`}
+        transform={`translate(${20}, ${gridH + topPad - 60})`}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
