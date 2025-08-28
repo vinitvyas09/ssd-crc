@@ -199,9 +199,8 @@ export default function AnimatedSVGDiagram({
         return (
           <motion.g 
             key={lane.id} 
-            transform={`translate(0,${topPad + i * laneH})`}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, x: -20, y: topPad + i * laneH }}
+            animate={{ opacity: 1, x: 0, y: topPad + i * laneH }}
             transition={{ delay: i * 0.1, duration: 0.5 }}
           >
             {/* Full lane background */}
