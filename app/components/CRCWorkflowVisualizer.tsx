@@ -458,14 +458,14 @@ export default function CRCWorkflowVisualizer() {
                 <>
                   {/* Left simulation metrics */}
                   <motion.div
-                    className="glass-panel rounded-xl p-4 metric-glow"
+                    className="glass-panel rounded-xl p-2.5 metric-glow"
                     whileHover={{ scale: 1.02 }}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Latency</span>
-                      <span className="text-xs px-2 py-0.5 bg-[var(--accent)] text-white rounded-full">Sol {state.solution.slice(1)}</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">Latency</span>
+                      <span className="text-[10px] px-1 py-0.5 bg-[var(--accent)] text-white rounded-full">Sol {state.solution.slice(1)}</span>
                     </div>
-                    <div className="text-2xl font-bold text-[var(--accent)]">
+                    <div className="text-base font-bold text-[var(--accent)]">
                       {model.metrics.latency}
                     </div>
                     <div className="mt-2 h-8">
