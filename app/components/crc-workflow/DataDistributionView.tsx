@@ -246,7 +246,10 @@ export default function DataDistributionView({ state }: DataDistributionViewProp
                 </div>
                 <div>
                   <div className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>
-                    {calculations.chunkSizeMB.toFixed(2)} MB
+                    {calculations.chunkSizeMB < 0.1 
+                      ? `${(chunkBytes / 1024).toFixed(1)} KB`
+                      : `${calculations.chunkSizeMB.toFixed(2)} MB`
+                    }
                   </div>
                   <div className="text-sm" style={{ color: 'var(--muted)' }}>Data per command</div>
                 </div>
