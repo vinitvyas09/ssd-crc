@@ -329,26 +329,26 @@ export default function CRCWorkflowVisualizer() {
         animate={{ opacity: 1, y: 0 }}
         className="sticky top-0 z-50 glass-panel"
       >
-        <div className="px-6 py-3 flex items-center justify-between border-b border-[var(--grid)]">
-          <div className="flex items-center gap-6">
+        <div className="px-3 py-2 flex items-center justify-between border-b border-[var(--grid)]">
+          <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+              <h1 className="text-sm font-semibold tracking-tight flex items-center gap-1.5">
                 <span className="bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)] bg-clip-text text-transparent">
                   CRC Workflows
                 </span>
-                <span className="text-xs px-2 py-1 bg-[var(--panel-2)] rounded-full text-[var(--muted)]">
+                <span className="text-[9px] px-1 py-0.5 bg-[var(--panel-2)] rounded-full text-[var(--muted)]">
                   v2.0
                 </span>
               </h1>
             </div>
             
             {/* View Mode Tabs */}
-            <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-1">
+            <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-0.5">
               {(['single', 'compare', 'timeline'] as ViewMode[]).map((mode) => (
                 <motion.button
                   key={mode}
                   onClick={() => setViewMode(mode)}
-                  className={`view-tab ${viewMode === mode ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-4 py-2 rounded-md text-sm font-medium capitalize`}
+                  className={`view-tab ${viewMode === mode ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-2 py-1 rounded-md text-[10px] font-medium capitalize`}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -362,24 +362,24 @@ export default function CRCWorkflowVisualizer() {
           </div>
 
           {/* Playback Controls */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-[var(--panel-2)] rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-[var(--panel-2)] rounded-lg px-2 py-1">
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="playback-control w-10 h-10 rounded-full flex items-center justify-center text-white"
+                className="playback-control w-7 h-7 rounded-full flex items-center justify-center text-white text-xs"
                 style={{ background: isPlaying ? 'var(--err)' : 'var(--ok)' }}
               >
                 {isPlaying ? '⏸' : '▶'}
               </motion.button>
               
               <div className="flex flex-col">
-                <span className="text-xs text-[var(--muted)]">Speed</span>
+                <span className="text-[9px] text-[var(--muted)]">Speed</span>
                 <select
                   value={playbackSpeed}
                   onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-                  className="bg-transparent text-sm text-[var(--fg)] outline-none"
+                  className="bg-transparent text-[10px] text-[var(--fg)] outline-none"
                 >
                   <option value="0.5">0.5x</option>
                   <option value="1">1x</option>
@@ -390,12 +390,12 @@ export default function CRCWorkflowVisualizer() {
             </div>
 
             {/* Quick Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowMinimap(!showMinimap)}
-                className="px-3 py-2 bg-[var(--panel-2)] rounded-lg text-sm"
+                className="px-2 py-1 bg-[var(--panel-2)] rounded-lg text-[10px]"
                 title="Toggle Minimap"
               >
                 🗺️
@@ -405,7 +405,7 @@ export default function CRCWorkflowVisualizer() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={exportSVG}
-                className="px-3 py-2 bg-[var(--panel-2)] rounded-lg text-sm"
+                className="px-2 py-1 bg-[var(--panel-2)] rounded-lg text-[10px]"
                 title="Export SVG"
               >
                 📄
@@ -415,7 +415,7 @@ export default function CRCWorkflowVisualizer() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={exportPNG}
-                className="px-3 py-2 bg-[var(--panel-2)] rounded-lg text-sm"
+                className="px-2 py-1 bg-[var(--panel-2)] rounded-lg text-[10px]"
                 title="Export PNG"
               >
                 🖼️
@@ -425,7 +425,7 @@ export default function CRCWorkflowVisualizer() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleReset}
-                className="px-3 py-2 bg-[var(--err)] text-white rounded-lg text-sm font-medium"
+                className="px-2 py-1 bg-[var(--err)] text-white rounded-lg text-[10px] font-medium"
               >
                 Reset
               </motion.button>
