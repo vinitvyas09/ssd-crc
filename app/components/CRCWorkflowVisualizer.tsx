@@ -566,14 +566,14 @@ export default function CRCWorkflowVisualizer() {
                 // Single mode: Show original 4 metrics
                 <>
                   <motion.div
-                    className="glass-panel rounded-xl p-4 metric-glow"
+                    className="glass-panel rounded-xl p-2.5 metric-glow"
                     whileHover={{ scale: 1.02 }}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Latency</span>
-                      <span className="text-xs text-[var(--ok)]">● Live</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">Latency</span>
+                      <span className="text-[10px] text-[var(--ok)]">● Live</span>
                     </div>
-                    <div className="text-2xl font-bold text-[var(--accent)]">
+                    <div className="text-base font-bold text-[var(--accent)]">
                       {model.metrics.latency}
                     </div>
                     <div className="mt-2 h-8">
@@ -590,14 +590,14 @@ export default function CRCWorkflowVisualizer() {
                   </motion.div>
 
                   <motion.div
-                    className="glass-panel rounded-xl p-4"
+                    className="glass-panel rounded-xl p-2.5"
                     whileHover={{ scale: 1.02 }}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Throughput</span>
-                      <span className="text-xs text-[var(--warn)]">▲ 12%</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">Throughput</span>
+                      <span className="text-[10px] text-[var(--warn)]">▲ 12%</span>
                     </div>
-                    <div className="text-2xl font-bold text-[var(--warn)]">
+                    <div className="text-base font-bold text-[var(--warn)]">
                       {model.metrics.throughput}
                     </div>
                     <div className="mt-2 flex items-end gap-1 h-8">
@@ -618,14 +618,14 @@ export default function CRCWorkflowVisualizer() {
                   </motion.div>
 
                   <motion.div
-                    className="glass-panel rounded-xl p-4"
+                    className="glass-panel rounded-xl p-2.5"
                     whileHover={{ scale: 1.02 }}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Fan-out</span>
-                      <span className="text-xs text-[var(--fg)]">Optimal</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">Fan-out</span>
+                      <span className="text-[10px] text-[var(--fg)]">Optimal</span>
                     </div>
-                    <div className="text-2xl font-bold">
+                    <div className="text-base font-bold">
                       {model.metrics.fanout}
                     </div>
                     <div className="mt-2 h-2 bg-[var(--panel-2)] rounded-full overflow-hidden">
@@ -639,14 +639,14 @@ export default function CRCWorkflowVisualizer() {
                   </motion.div>
 
                   <motion.div
-                    className="glass-panel rounded-xl p-4"
+                    className="glass-panel rounded-xl p-2.5"
                     whileHover={{ scale: 1.02 }}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-[var(--muted)] uppercase tracking-wider">Current Stage</span>
-                      <span className="text-xs text-[var(--accent)]">● Active</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider">Current Stage</span>
+                      <span className="text-[10px] text-[var(--accent)]">● Active</span>
                     </div>
-                    <div className="text-lg font-bold text-[var(--fg)] truncate">
+                    <div className="text-sm font-bold text-[var(--fg)] truncate">
                       {currentStage}
                     </div>
                     <div className="mt-2">
