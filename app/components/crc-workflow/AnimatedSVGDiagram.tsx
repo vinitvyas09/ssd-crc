@@ -378,17 +378,26 @@ export default function AnimatedSVGDiagram({
                 opacity={isActive ? 1 : 0.9}
               />
               
-              {w > 60 && visibility > 0.5 && activity.label && (
-                <text
-                  x={x + 8}
-                  y={y + 15}
-                  className="text-xs font-medium"
-                  fill={textColor}
-                  opacity={visibility}
-                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}
-                >
-                  {activity.label}
-                </text>
+              {w > 40 && visibility > 0.5 && activity.label && (
+                <g>
+                  <clipPath id={`clip-activity-${idx}`}>
+                    <rect x={x + 4} y={y} width={Math.max(0, (w * visibility) - 8)} height={h} />
+                  </clipPath>
+                  <text
+                    x={x + 8}
+                    y={y + 15}
+                    className="text-xs font-medium"
+                    fill={textColor}
+                    opacity={visibility}
+                    clipPath={`url(#clip-activity-${idx})`}
+                    style={{ 
+                      textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {activity.label}
+                  </text>
+                </g>
               )}
             </motion.g>
           );
