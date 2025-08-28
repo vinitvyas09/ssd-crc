@@ -135,27 +135,31 @@ export default function CRCWorkflowVisualizer() {
     setCurrentStage(stage);
   }, [animationProgress, model]);
 
-  // Smart tooltip positioning
+  // Enhanced tooltip handler with better UX
   const updateTooltip = useCallback((e: React.MouseEvent, content: string) => {
-    if (!containerRef.current) return;
-    
-    let x = e.clientX + 10;
-    let y = e.clientY + 10;
-
-    const tooltipWidth = 320;
-    const tooltipHeight = 100;
-    
-    // Adjust if tooltip would go off the right edge
-    if (x + tooltipWidth > window.innerWidth) {
-      x = e.clientX - tooltipWidth - 10;
+    if (!content) {
+      // Just update position if content is empty (mouse move)
+      if (tooltipData) {
+        setTooltipData({
+          ...tooltipData,
+          x: e.clientX + 15,
+          y: e.clientY + 15
+        });
+      }
+      return;
     }
     
-    // Adjust if tooltip would go off the bottom edge
-    if (y + tooltipHeight > window.innerHeight) {
-      y = e.clientY - tooltipHeight - 10;
-    }
-    
-    setTooltip({ visible: true, x, y, content });
+    // Set new tooltip with content
+    setTooltipData({
+      x: e.clientX + 15,
+      y: e.clientY + 15,
+      content,
+      targetRect: (e.currentTarget as HTMLElement).getBoundingClientRect()
+    });
+  }, [tooltipData]);
+  
+  const hideTooltip = useCallback(() => {
+    setTooltipData(null);
   }, []);
 
   // Export functions
