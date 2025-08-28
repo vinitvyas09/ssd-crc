@@ -149,7 +149,7 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
               stroke="#2a3a4d"
               strokeWidth="1"
             />
-            {w > 60 && (
+            {w > 60 && activity.label && (
               <text
                 x={x + 6}
                 y={y + 14}

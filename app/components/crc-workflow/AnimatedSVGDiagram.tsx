@@ -229,7 +229,7 @@ export default function AnimatedSVGDiagram({
                 strokeWidth={hoveredItem === `activity-${idx}` ? "2" : "1"}
                 filter={hoveredItem === `activity-${idx}` ? 'url(#glow)' : ''}
               />
-              {w > 60 && visibility > 0.5 && (
+              {w > 60 && visibility > 0.5 && activity.label && (
                 <text
                   x={x + 6}
                   y={y + 14}

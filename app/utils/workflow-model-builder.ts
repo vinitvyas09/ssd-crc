@@ -124,7 +124,8 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     while (count > 1) {
       const ops = Math.floor(count / 2);
       for (let j = 0; j < ops; j++) {
-        activity('host', tStage, tStage + hostCombine, `Combine stage ${stage + 1}: CRC64_COMBINE(pair ${j + 1})`);
+        // Hide verbose labels to avoid overlap in the diagram; keep the rectangles only.
+        activity('host', tStage, tStage + hostCombine, '');
       }
       tStage += hostCombine + 10;
       count = Math.ceil(count / 2);
