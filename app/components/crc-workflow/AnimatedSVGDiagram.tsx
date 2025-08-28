@@ -502,9 +502,22 @@ export default function AnimatedSVGDiagram({
                 strokeWidth="1"
                 opacity={visibility * 0.9}
               />
-              <text x={x + 8} y={y + 13} className="text-xs" fill="var(--fg)" opacity={visibility}>
-                {note.label}
-              </text>
+              <g>
+                <clipPath id={`clip-note-${idx}`}>
+                  <rect x={x + 4} y={y} width={w - 8} height={h} />
+                </clipPath>
+                <text 
+                  x={x + 8} 
+                  y={y + 13} 
+                  className="text-xs" 
+                  fill="var(--fg)" 
+                  opacity={visibility}
+                  clipPath={`url(#clip-note-${idx})`}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {note.label}
+                </text>
+              </g>
             </motion.g>
           );
         })}
