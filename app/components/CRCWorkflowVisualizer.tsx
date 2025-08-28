@@ -125,7 +125,8 @@ export default function CRCWorkflowVisualizer() {
       if (/CRC_Calc/.test(msg.label)) stage = 'Sending CRC request';
       else if (/Completion/.test(msg.label)) stage = 'Receiving CRC result';
       else if (/Retry/.test(msg.label)) stage = 'Retrying request';
-      else if (/CRC_Combine/.test(msg.label)) stage = 'Sending aggregation request';
+      // We no longer emit verbose CRC_Combine labels; treat as a generic aggregation request if present
+      else if (/CRC_Combine|Aggregation request/.test(msg.label)) stage = 'Sending aggregation request';
     }
 
     if (progress >= tmax * 0.95) stage = 'Validation complete';
