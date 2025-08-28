@@ -434,7 +434,7 @@ export default function CRCWorkflowVisualizer() {
         </div>
       </motion.header>
 
-      <div className="flex h-[calc(100vh-48px)]">
+      <div className="flex h-[calc(100vh-40px)]">
         {/* Control Panel */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
