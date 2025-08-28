@@ -227,13 +227,13 @@ export default function AnimatedSVGDiagram({
             {/* Icon + labels */}
             <g transform="translate(14, 22)">
               {isHost && (
-                <text className="text-[18px]" fill="var(--accent)" x="0" y="2">🖥️</text>
+                <text className="text-[18px]" fill="currentColor" style={{ color: 'var(--accent)' }} x="0" y="2">🖥️</text>
               )}
               {isSSD && (
-                <text className="text-[18px]" fill="var(--ok)" x="0" y="2">💾</text>
+                <text className="text-[18px]" fill="currentColor" style={{ color: 'var(--ok)' }} x="0" y="2">💾</text>
               )}
-              <text x="30" y="0" className="text-[14px] font-semibold" fill="var(--fg)">{lane.label}</text>
-              <text x="30" y="16" className="text-[11px]" fill="var(--muted)">{isHost ? 'Controller' : 'Storage Device'}</text>
+              <text x="30" y="0" className="text-[14px] font-semibold" fill="currentColor" style={{ color: 'var(--fg)' }}>{lane.label}</text>
+              <text x="30" y="16" className="text-[11px]" fill="currentColor" style={{ color: 'var(--muted)' }}>{isHost ? 'Controller' : 'Storage Device'}</text>
             </g>
 
             {/* Lifelines */}
@@ -366,7 +366,7 @@ export default function AnimatedSVGDiagram({
                   x={(x1 + currentX2) / 2}
                   y={(y1 + currentY2) / 2 - 6}
                   className="text-xs"
-                  fill="var(--fg)"
+                  fill="currentColor" style={{ color: 'var(--fg)' }}
                   textAnchor="middle"
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: visibility, y: 0 }}
@@ -460,7 +460,7 @@ export default function AnimatedSVGDiagram({
           x="240"
           y={stageMinimized ? '54' : '18'}
           className="text-[12px]"
-          fill="var(--muted)"
+          fill="currentColor" style={{ color: 'var(--muted)' }}
           style={{ cursor: 'pointer' }}
           onClick={() => setStageMinimized(!stageMinimized)}
         >
@@ -468,9 +468,9 @@ export default function AnimatedSVGDiagram({
         </text>
         {!stageMinimized && (
           <>
-            <text x="10" y="18" className="text-[11px] font-semibold" fill="var(--muted)">CURRENT STAGE</text>
-            <text x="10" y="36" className="text-[14px] font-medium" fill="var(--fg)">{currentStage}</text>
-            <rect x="10" y="42" width="220" height="3" rx="1.5" fill="var(--grid)" />
+            <text x="10" y="18" className="text-[11px] font-semibold" fill="currentColor" style={{ color: 'var(--muted)' }}>CURRENT STAGE</text>
+            <text x="10" y="36" className="text-[14px] font-medium" fill="currentColor" style={{ color: 'var(--fg)' }}>{currentStage}</text>
+            <rect x="10" y="42" width="220" height="3" rx="1.5" fill="currentColor" style={{ fill: 'var(--grid)' }} />
             <motion.rect
               x="10" y="42" height="3" rx="1.5" fill="var(--accent)"
               initial={{ width: 0 }}
@@ -479,7 +479,7 @@ export default function AnimatedSVGDiagram({
           </>
         )}
         {stageMinimized && (
-          <text x="10" y="54" className="text-[12px]" fill="var(--fg)">{currentStage}</text>
+          <text x="10" y="54" className="text-[12px]" fill="currentColor" style={{ color: 'var(--fg)' }}>{currentStage}</text>
         )}
       </motion.g>
     </svg>
