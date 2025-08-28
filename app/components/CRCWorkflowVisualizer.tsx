@@ -986,28 +986,8 @@ export default function CRCWorkflowVisualizer() {
         </div>
       </div>
 
-      {/* Enhanced Tooltip */}
-      <AnimatePresence>
-        {tooltip.visible && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed pointer-events-none z-[9999]"
-            style={{
-              left: `${tooltip.x}px`,
-              top: `${tooltip.y}px`,
-            }}
-          >
-            <div className="glass-panel rounded-xl px-4 py-3 max-w-[320px] shadow-2xl">
-              <div
-                className="text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: tooltip.content }}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Enhanced Tooltip with better UX */}
+      <EnhancedTooltip data={tooltipData} delay={100} />
     </div>
   );
 }
