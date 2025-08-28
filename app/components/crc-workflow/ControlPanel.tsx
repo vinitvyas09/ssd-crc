@@ -328,7 +328,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         
         <SliderInput
           id="hostc"
-          label="Host Combine"
+          label="Host Combine (all shards)"
           value={state.hostc}
           onChange={(v) => setState({ ...state, hostc: v })}
           min={5}
@@ -339,7 +339,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         
         <SliderInput
           id="aggc"
-          label="SSD Aggregate"
+          label="SSD agg time/shard"
           value={state.aggc}
           onChange={(v) => setState({ ...state, aggc: v })}
           min={1}
