@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface AnimatedSVGDiagramProps {
   model: WorkflowModel;
-  svgRef: React.RefObject<SVGSVGElement>;
+  svgRef: React.RefObject<SVGSVGElement | null>;
   state: WorkflowState;
   onTooltip: (e: React.MouseEvent, content: string) => void;
   isPlaying: boolean;

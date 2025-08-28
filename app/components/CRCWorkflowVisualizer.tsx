@@ -5,6 +5,7 @@ import { WorkflowState, TooltipState, initialState } from '@/app/types/crc-workf
 import { buildWorkflowModel } from '@/app/utils/workflow-model-builder';
 import ControlPanel from '@/app/components/crc-workflow/ControlPanel';
 import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram';
+import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CRCWorkflowVisualizer() {
