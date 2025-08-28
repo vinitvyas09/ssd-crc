@@ -249,7 +249,7 @@ export default function ControlPanel({ state, setState }: ControlPanelProps) {
         />
         
         <AnimatePresence>
-          {state.solution === 3 && (
+          {state.solution === '3' && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
