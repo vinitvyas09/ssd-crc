@@ -371,7 +371,7 @@ export default function CRCWorkflowVisualizer() {
                   CRC Workflows
                 </span>
                 <span className="text-[9px] px-1 py-0.5 bg-[var(--panel-2)] rounded-full text-[var(--muted)]">
-                  v2.0
+                  v0.5
                 </span>
               </h1>
             </div>
