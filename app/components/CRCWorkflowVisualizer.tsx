@@ -462,7 +462,7 @@ export default function CRCWorkflowVisualizer() {
                   <span className="text-xs text-[var(--ok)]">Low</span>
                 </div>
                 <div className="text-2xl font-bold text-[var(--ok)]">
-                  {Math.round(Math.random() * 20 + 15)}%
+                  {Math.round(performanceData[performanceData.length - 1]?.cpu) || 25}%
                 </div>
                 <div className="mt-2">
                   <div className="flex items-center gap-2">
