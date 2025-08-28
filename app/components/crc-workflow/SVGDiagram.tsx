@@ -107,10 +107,10 @@ export default function SVGDiagram({ model, svgRef, state, onTooltip }: SVGDiagr
             <line x1="150" x2="150" y1="0" y2={laneH} stroke="#2b3a4a" opacity="0.35" />
             {/* Icon and labels */}
             <g transform="translate(14, 22)">
-              {isHost && (<text className="text-[18px]" fill="var(--accent)" x="0" y="2">🖥️</text>)}
-              {isSSD && (<text className="text-[18px]" fill="var(--ok)" x="0" y="2">💾</text>)}
-              <text x="30" y="0" className="text-[14px] font-semibold" fill="var(--fg)">{lane.label}</text>
-              <text x="30" y="16" className="text-[11px]" fill="var(--muted)">{isHost ? 'Controller' : 'Storage Device'}</text>
+              {isHost && (<text className="text-[18px]" fill="currentColor" style={{ color: 'var(--accent)' }} x="0" y="2">🖥️</text>)}
+              {isSSD && (<text className="text-[18px]" fill="currentColor" style={{ color: 'var(--ok)' }} x="0" y="2">💾</text>)}
+              <text x="30" y="0" className="text-[14px] font-semibold" fill="currentColor" style={{ color: 'var(--fg)' }}>{lane.label}</text>
+              <text x="30" y="16" className="text-[11px]" fill="currentColor" style={{ color: 'var(--muted)' }}>{isHost ? 'Controller' : 'Storage Device'}</text>
             </g>
             <line
               x1={leftPad - 10}
