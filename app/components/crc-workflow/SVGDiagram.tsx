@@ -31,8 +31,8 @@ export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps
     setCurrentContent(content);
     onTooltip({
       visible: true,
-      x: e.clientX + 12,
-      y: e.clientY - 12,
+      x: e.clientX + 10,
+      y: e.clientY + 10,
       content
     });
   };
@@ -40,8 +40,8 @@ export default function SVGDiagram({ model, svgRef, onTooltip }: SVGDiagramProps
   const handleMouseMove = (e: React.MouseEvent) => {
     onTooltip({
       visible: true,
-      x: e.clientX + 12,
-      y: e.clientY - 12,
+      x: e.clientX + 10,
+      y: e.clientY + 10,
       content: currentContent
     });
   };
