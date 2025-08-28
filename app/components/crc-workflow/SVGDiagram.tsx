@@ -256,9 +256,21 @@ export default function SVGDiagram({ model, svgRef, onTooltip, onHideTooltip }: 
               stroke="#2a3a4d"
               strokeWidth="1"
             />
-            <text x={x + 8} y={y + 13} className="text-xs" fill="var(--fg)">
-              {note.label}
-            </text>
+            <g>
+              <clipPath id={`clip-note-${idx}`}>
+                <rect x={x + 4} y={y} width={w - 8} height={h} />
+              </clipPath>
+              <text 
+                x={x + 8} 
+                y={y + 13} 
+                className="text-xs" 
+                fill="var(--fg)"
+                clipPath={`url(#clip-note-${idx})`}
+                style={{ pointerEvents: 'none' }}
+              >
+                {note.label}
+              </text>
+            </g>
           </g>
         );
       })}
