@@ -78,7 +78,6 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
           t = msg(`ssd${i}`, 'host', t + dev, t + dev + lat, `Completion(CRCᵢ)`, 'ok');
         }
         calcCRC = `CRC64_COMBINE(${calcCRC}, CRCᵢ, ${segBytes})`;
-        note('host', t + 4, `Calculated_CRC ← ${calcCRC}`);
       }
     }
     tmax = Math.max(tmax, events.reduce((m, e) => Math.max(m, e.t1), 0) + 40);
