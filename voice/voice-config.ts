@@ -5,7 +5,13 @@ import { getVapiFunctions } from "@/tools/unified-tools";
 const getServerUrl = () => {
   // In production, use the actual domain
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+    const url = process.env.NEXT_PUBLIC_VERCEL_URL;
+    // Check if URL already has protocol
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    // Add https:// if no protocol
+    return `https://${url}`;
   }
   // In development, use localhost
   if (typeof window !== 'undefined') {
