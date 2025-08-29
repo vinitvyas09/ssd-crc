@@ -20,11 +20,10 @@ function useDebuggedChat(options: Parameters<typeof useChat>[0]) {
       console.log('Message updated:', {
         id: lastMessage.id,
         role: lastMessage.role,
-        parts: lastMessage.parts?.map(part => ({
+        parts: lastMessage.parts?.map((part) => ({
           type: part.type,
-          state: part.type === 'tool-invocation' ? part.toolInvocation.state : undefined,
-          text: part.type === 'text' ? part.text.substring(0, 20) + '...' : undefined,
-          keys: part.type === 'tool-invocation' ? Object.keys(part.toolInvocation) : undefined
+          state: (('state' in (part as object)) ? (part as { state?: string }).state : undefined),
+          text: part.type === 'text' ? part.text?.substring(0, 20) + '...' : undefined
         }))
       });
     }
@@ -33,37 +32,15 @@ function useDebuggedChat(options: Parameters<typeof useChat>[0]) {
   return chatHook;
 }
 
-// Minimal type for the message object received by onFinish
-type FinishMessage = {
-  id: string;
-  parts?: Array<
-    | { type: 'text'; text: string }
-    | {
-        type: 'tool-invocation';
-        toolInvocation: {
-          state?: string;
-          name?: string;
-          input?: Record<string, unknown>;
-        };
-      }
-  >;
-};
-
 export function Chat() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useDebuggedChat({
-    initialMessages: [],
+  const { messages, sendMessage, status } = useDebuggedChat({
+    messages: [],
     id: 'esteem-ai-chat',
-    onResponse: (response: Response) => {
-      // When a new response starts, we can log debugging info
-      console.log('Chat response started:', { status: response.status });
-    },
-    onFinish: (message: FinishMessage) => {
-      // When a response finishes, we can verify the final message structure
+    onFinish: ({ message }) => {
       console.log('Chat response finished:', { 
         id: message.id,
         parts: message.parts?.length
       });
-      
       // Auto-focus the textarea when the AI response finishes
       setTimeout(() => {
         textareaRef.current?.focus();
@@ -73,6 +50,7 @@ export function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [input, setInput] = useState("");
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const lastScrollPositionRef = useRef(0);
 
@@ -107,7 +85,10 @@ export function Chat() {
     const lastMessage = messages[messages.length - 1];
     const lastMessageParts = lastMessage?.parts ?? [];
     const lastPart = lastMessageParts[lastMessageParts.length - 1];
-    const isThinking = lastPart?.type === 'tool-invocation' && lastPart.toolInvocation.state === 'call';
+    const isThinking = !!lastPart &&
+      typeof (lastPart as { type?: unknown }).type === 'string' &&
+      (lastPart as { type: string }).type.startsWith('tool-') &&
+      (((lastPart as { state?: string }).state === 'input-streaming') || ((lastPart as { state?: string }).state === 'input-available'));
 
     if (shouldAutoScroll || isThinking) {
       scrollToBottom();
@@ -131,7 +112,11 @@ export function Chat() {
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setShouldAutoScroll(true);
-    handleSubmit(e);
+    const text = input.trim();
+    if (text) {
+      void sendMessage({ text });
+      setInput("");
+    }
     if (textareaRef.current) {
       setTimeout(() => adjustTextareaHeight(), 0);
     }
@@ -189,22 +174,22 @@ export function Chat() {
                 </div>
                 <div className="prose-sm dark:prose-invert max-w-none">
                   {message.role === 'user' ? (
-                    (message.parts ?? []).map((part, partIndex) => {
-                      switch (part.type) {
-                        case 'text':
-                          return (
-                            <div key={partIndex} className="whitespace-pre-wrap text-sm leading-relaxed markdown-content">
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={markdownComponents}
-                              >
-                                {part.text}
-                              </ReactMarkdown>
-                            </div>
-                          );
-                        default:
-                          return <div key={partIndex} className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</div>;
+                    (message.parts ?? []).map((part, partIndex: number) => {
+                      if (part.type === 'text') {
+                        return (
+                          <div key={partIndex} className="whitespace-pre-wrap text-sm leading-relaxed markdown-content">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={markdownComponents}
+                            >
+                              {part.text}
+                            </ReactMarkdown>
+                          </div>
+                        );
                       }
+                      return (
+                        <div key={partIndex} className="whitespace-pre-wrap text-sm leading-relaxed">…</div>
+                      );
                     })
                   ) : (
                     <>
@@ -215,11 +200,11 @@ export function Chat() {
                         }
                         
                         // 2. Check if the message is in "tool call" state
-                        const isToolCall = message.parts.some(part => 
-                          part.type === 'tool-invocation' && 
-                          part.toolInvocation && 
-                          part.toolInvocation.state === 'call'
-                        );
+                        const isToolCall = message.parts.some((part) => (
+                          typeof (part as { type?: unknown }).type === 'string' &&
+                          (part as { type: string }).type.startsWith('tool-') &&
+                          (((part as { state?: string }).state === 'input-streaming') || ((part as { state?: string }).state === 'input-available'))
+                        ));
                         
                         // 3. Check if the message has text content
                         const textParts = message.parts.filter(part => part.type === 'text');
@@ -227,77 +212,12 @@ export function Chat() {
                         
                         // If a tool is being called but there's no text yet, show the thinking state
                         if (isToolCall && !hasText) {
-                          console.log("RENDERING TOOL CALL UI - Tool invocation detected", {
-                            allParts: message.parts,
-                          });
-                          
-                          // Get the input from all tool invocation parts to determine which tool is being used
-                          let isTavilySearch = false;
-                          let isCalculator = false;
-                          let toolName = "unknown";
-                          
-                          // Check all parts for tool invocations
-                          message.parts.forEach(part => {
-                            if (part.type === 'tool-invocation') {
-                              // Check if this is a Tavily search (has a query parameter)
-                              try {
-                                const input = JSON.parse(JSON.stringify(part));
-                                console.log("[Tool Detection] Tool invocation part:", input);
-                                
-                                if (input?.toolInvocation?.input?.query) {
-                                  console.log("[Tool Detection] Found Tavily with query:", input.toolInvocation.input.query);
-                                  isTavilySearch = true;
-                                  toolName = "tavilySearch";
-                                }
-                                
-                                if (input?.toolInvocation?.input?.operation) {
-                                  console.log("[Tool Detection] Found Calculator with operation:", input.toolInvocation.input.operation);
-                                  isCalculator = true;
-                                  toolName = "calculator";
-                                }
-                                
-                                // Log the actual tool name from the API if available
-                                if (input?.toolInvocation?.name) {
-                                  console.log("[Tool Detection] ACTUAL TOOL NAME:", input.toolInvocation.name);
-                                  toolName = input.toolInvocation.name;
-                                  
-                                  // Direct check based on the tool name
-                                  if (input.toolInvocation.name === "tavilySearch") {
-                                    isTavilySearch = true;
-                                  }
-                                }
-                              } catch {
-                                console.error("[Tool Detection] Error parsing tool invocation");
-                              }
-                            }
-                          });
-                          
-                          console.log("[Tool Detection] Tool detection results:", { 
-                            isTavilySearch,
-                            isCalculator,
-                            toolName
-                          });
-                          
-                          // Check if the registered tool name is "tavilySearch" directly
-                          let showTavilySearch = false;
-                          message.parts.forEach(part => {
-                            if (part.type === 'tool-invocation') {
-                              try {
-                                const stringified = JSON.stringify(part);
-                                // Direct string search for the registered tool name
-                                if (stringified.includes('"tavilySearch"')) {
-                                  console.log("[Tool Detection] Found string 'tavilySearch' in tool invocation");
-                                  showTavilySearch = true;
-                                }
-                              } catch {
-                                // Ignore errors
-                              }
-                            }
-                          });
-                          
-                          // Use the direct string detection as a fallback
-                          return (isTavilySearch || toolName === "tavilySearch" || showTavilySearch) ? 
-                            <TavilySearch /> : <Calculator />;
+                          // Determine which tool is being called from the part type
+                          const toolPart = message.parts.find((p) => typeof (p as { type?: unknown }).type === 'string' && (p as { type: string }).type.startsWith('tool-')) as { type?: string } | undefined;
+                          const toolType = toolPart?.type ?? '';
+                          if (toolType === 'tool-tavilySearch') return <TavilySearch />;
+                          if (toolType === 'tool-calculator') return <Calculator />;
+                          return <div className="text-xs italic text-neutral-500 dark:text-neutral-400">Thinking…</div>;
                         }
                         
                         // Otherwise, render all text parts
@@ -334,7 +254,7 @@ export function Chat() {
               className="w-full bg-transparent text-neutral-800 dark:text-neutral-200 pl-5 pr-12 py-2.5 focus:outline-none placeholder-neutral-400 text-sm resize-none overflow-y-auto min-h-[46px] max-h-[116px] leading-[1.5rem] align-middle"
               value={input}
               onChange={(e) => {
-                handleInputChange(e);
+                setInput(e.target.value);
                 adjustTextareaHeight();
               }}
               onKeyDown={(e) => {
@@ -344,7 +264,7 @@ export function Chat() {
                 }
               }}
               placeholder="Type a message..."
-              disabled={isLoading}
+              disabled={status === 'submitted' || status === 'streaming'}
               rows={1}
               style={{
                 paddingTop: input ? '0.625rem' : '0.75rem',
@@ -353,7 +273,7 @@ export function Chat() {
             />
             <button 
               type="submit" 
-              disabled={isLoading}
+              disabled={status === 'submitted' || status === 'streaming'}
               className="absolute right-1.5 top-1/2 transform -translate-y-1/2 bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded-full hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50 disabled:hover:bg-amber-600"
               aria-label="Send message"
             >

@@ -16,7 +16,6 @@ export async function POST(req: Request) {
     model: openai("gpt-4.1"),
     messages: convertToModelMessages(messages),
     system: system_prompt,
-    maxToolRoundtrips: 2, // Allow tool use followed by text
     tools: {
       calculator: calculatorTool,
       tavilySearch: tavilySearchTool
@@ -30,22 +29,16 @@ export async function POST(req: Request) {
   
   // Log the tool definitions safely
   try {
-    const calculatorInfo = JSON.parse(JSON.stringify(calculatorTool));
-    const tavilyInfo = JSON.parse(JSON.stringify(tavilySearchTool));
-    
     console.log("[API Route] Calculator tool info:", {
-      description: calculatorInfo.description?.substring(0, 50) + '...',
-      parameters: Object.keys(calculatorInfo.parameters?.shape || {})
+      description: calculatorTool.description?.substring(0, 50) + "...",
     });
-    
     console.log("[API Route] Tavily tool info:", {
-      description: tavilyInfo.description?.substring(0, 50) + '...',
-      parameters: Object.keys(tavilyInfo.parameters?.shape || {})
+      description: tavilySearchTool.description?.substring(0, 50) + "...",
     });
   } catch (e) {
     console.error("[API Route] Error logging tool info:", e);
   }
 
   // Return the data stream response
-  return result.toDataStreamResponse();
+  return result.toUIMessageStreamResponse();
 }
