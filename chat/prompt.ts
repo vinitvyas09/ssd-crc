@@ -1,4 +1,3 @@
-// This is a placeholder for the actual project report content
 export const project_report_content = `
 `;
 
