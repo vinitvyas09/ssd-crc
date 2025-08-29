@@ -402,7 +402,7 @@ export default function CRCWorkflowVisualizer() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                🤖 AI Agent
+                🤖 AI Chatbot
               </motion.button>
             </div>
             
