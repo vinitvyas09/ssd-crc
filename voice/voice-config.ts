@@ -24,7 +24,7 @@ export const assistant = {
   },
   model: {
     provider: "openai" as const,
-    model: "gpt-4.1",
+    model: "gpt-4.1" as any,
     temperature: 0.7,
     systemPrompt: system_prompt,
     functions: getVapiFunctions(),
