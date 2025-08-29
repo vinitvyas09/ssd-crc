@@ -35,11 +35,11 @@ This analysis examines three architectural approaches for offloading CRC computa
 
 Options
 
-We have sketched out 3 possible ways to orchestrate this flow. We assume that a large host object is erasure coded with each part of it being stored in the various SSDs in the server (the number of SSDs and the number of objects need not be correlated). Therefore, each object’s CRC value requires accumulation of individual CRCs computed for parts of the object stored in an SSD.
+We have sketched out 3 possible ways to orchestrate this flow. We assume that a large host object is erasure coded with each part of it being stored in the various SSDs in the server (the number of SSDs and the number of objects need not be correlated). Therefore, each object's CRC value requires accumulation of individual CRCs computed for parts of the object stored in an SSD.
 
 Solution 1:
 
-The storage system accumulates the CRC value by seeding each CRC command request with the calculated CRC from the previously completed command. In other words, the first SSD, call it SSD0, associated with the object data is sent a CRC_read request, and its result is used to ‘seed’ the subsequent CRC_read cmd to SSD1. This makes the CRC data integrity check process serial and sequential for a given object or file, but a steady state operation fills out the pipeline for CRC_read commands issued to the SSD device.
+The storage system accumulates the CRC value by seeding each CRC command request with the calculated CRC from the previously completed command. In other words, the first SSD, call it SSD0, associated with the object data is sent a CRC_read request, and its result is used to ‘seed' the subsequent CRC_read cmd to SSD1. This makes the CRC data integrity check process serial and sequential for a given object or file, but a steady state operation fills out the pipeline for CRC_read commands issued to the SSD device.
 
 Solution 2:
 
@@ -65,13 +65,14 @@ Solution 1: Serial CRC with seeding
 ​      IF an error occurred: 
 ​        RETRY CRC_Calc 
 ​    ELSE IF successful: 
-​      UPDATE Calculated_CRC WITH new value FROM CRC_Calc completion 
+      UPDATE Calculated_CRC WITH new value FROM CRC_Calc completion 
 ​ 
 ​COMPARE Calculated_CRC AGAINST Golden_CRC FOR the current file/object: 
 
 ​  IF Calculated_CRC IS NOT EQUAL TO Golden_CRC: 
 
 ​    INITIATE REPAIR PROCESS FOR the current file/object
+
 Solution 2: Parallel CRC + Host Aggregation
 
 FOR EACH file/object TO BE VALIDATED:
@@ -103,7 +104,7 @@ FOR EACH file/object TO BE VALIDATED:
     FOR i FROM 0 TO Partial_CRC_List.LENGTH-1  IN STRIPE ORDER:
         Calculated_CRC =
             CRC64_COMBINE(Calculated_CRC,            /* running aggregate   */
-                           Partial_CRC_List[i],       /* chunk’s CRC64       */
+                           Partial_CRC_List[i],       /* chunk's CRC64       */
                            Chunk_Length_List[i])      /* length for shift    */
 
     /* === 4. Validate === */
@@ -215,7 +216,7 @@ Latency grows with log₂(x) host XOR stages; can accommodate more than #1
 Same compute fan-out as #2, but host is idle. Aggregator SSD can become a hotspot
 File Size
 Pipeline fill cost is amortized; steady-state bandwidth improves unless SSD count is low
-Size-agnostic until a single SSD’s DPU queue saturates
+Size-agnostic until a single SSD's DPU queue saturates
 Same as #2. Host isn't involved but you still wait for the bottleneck SSD
 Concurrent Files
 SSD executes one CRC_Calc at a time; deep queues help but head-of-line blocking under heavy mix
@@ -238,7 +239,7 @@ Similar to #1
 Same as previous, but need to add SSD aggregation logic (parse CRC array, perform shift + XOR tree via DPU, and return final CRC; adds aggregation opcode, larger scratch buffers, and firmware math loop)
 Error Recovery
 Cascading failure chain. A failed SSD or timeout stalls the entire pipeline; host must restart from the failed link and reseed downstream drives.
-Independent failure domains. If an SSD fails, host reissues only that drive’s CRC_Calc and re-aggregates; simpler isolation, but aggregation state must be rewound.
+Independent failure domains. If an SSD fails, host reissues only that drive's CRC_Calc and re-aggregates; simpler isolation, but aggregation state must be rewound.
 Split responsibility. Device failures are isolated like #2, but if the aggregator SSD fails mid-compute the host must resubmit to another SSD or fall back to host aggregation. Retry logic spans two tiers (compute SSDs + aggregator SSD)
 Resource Utilization
 
@@ -258,13 +259,13 @@ Same x-entry buffer per object until list is sent to aggregator SSD; freed once 
 PCIe Bandwidth
 Low, smooth. Same total bytes/object as the others (2 × x cmd+resp) but serialized per object, so traffic is evenly spread; link utilisation stays ≪ 1 % of a Gen4 x4 lane even with tens of objects
 Moderate, burstier. Still only 2x messages/object, but they are issued to all SSDs concurrently. Average bandwidth rises and outstanding TLPs/credits grow, yet remains tiny versus user-data payloads.
-Slightly higher than #2. Adds one extra cmd+resp carrying the x-entry CRC list to an aggregator SSD, so ~ (2x + 2) messages/object. Aggregator’s lane sees ~2× control traffic; overall link load still negligible compared with bulk I/O.
+Slightly higher than #2. Adds one extra cmd+resp carrying the x-entry CRC list to an aggregator SSD, so ~ (2x + 2) messages/object. Aggregator's lane sees ~2× control traffic; overall link load still negligible compared with bulk I/O.
 
 Further Analysis
 Performance
 Solution 1, the sequential approach, inherently serializes CRC computation, creating a chain of dependencies where each SSD waits for the previous one's CRC result. This linear dependency introduces cumulative latency, scaling linearly with the number of SSDs in the erasure stripe. The worst-case latency can become significant due to head-of-line blocking, directly proportional to SSD count. Once the pipeline fills, however, Solution 1 achieves steady-state throughput, yielding consistent CRC results per pipeline cycle. Parallelism within a single object (intra-object) remains low, but inter-object parallelism is moderate, enabling parallel CRC checks across independent objects. Nonetheless, host-side complexity increases, particularly in managing sequencing and retry logic across multiple SSDs.
 
-Solution 2 significantly improves latency by enabling parallel CRC computations across all SSDs simultaneously, reducing latency to the slowest SSD’s computation plus host-side aggregation overhead. The parallel CRC execution results in higher intra-object parallelism, substantially reducing cumulative latency and mitigating head-of-line blocking. However, host aggregation would require (2^n - 1) shift and XOR operations, spread across log(n) time. This means a 16 SSD setup would require roughly 15 shift-and-XOR operations across four parallel stages, potentially adding some overhead (likely in the order of 100s of microseconds) to the host compute operations. PCIe bus utilization and its congestion in steady state traffic won’t be a key performance factor, as we expect relatively small commands (just the 64 bit CRC values) to be received by the host.
+Solution 2 significantly improves latency by enabling parallel CRC computations across all SSDs simultaneously, reducing latency to the slowest SSD's computation plus host-side aggregation overhead. The parallel CRC execution results in higher intra-object parallelism, substantially reducing cumulative latency and mitigating head-of-line blocking. However, host aggregation would require (2^n - 1) shift and XOR operations, spread across log(n) time. This means a 16 SSD setup would require roughly 15 shift-and-XOR operations across four parallel stages, potentially adding some overhead (likely in the order of 100s of microseconds) to the host compute operations. PCIe bus utilization and its congestion in steady state traffic won't be a key performance factor, as we expect relatively small commands (just the 64 bit CRC values) to be received by the host.
 
 Solution 3 builds upon the parallelism benefits of Solution 2 and attempts to further optimize performance by completely offloading CRC aggregation onto a dedicated aggregation SSD. Host-side aggregation overhead is eliminated, adding only an incremental latency of likely few 10s of microseconds for the SSD-based aggregation operation. This solution maximizes intra-object parallelism and significantly reduces host computational demands. However, the aggregation SSD, depending on its performance tuning and deep queue performance, itself can become a bottleneck under heavy concurrent workloads, potentially limiting throughput. Distributing aggregation tasks among multiple SSDs might alleviate this issue, but additional coordination overhead may offset these performance benefits, and so was not considered as an option for this solution.
 
@@ -286,7 +287,7 @@ Solution 2 relaxes the ordering constraint but replaces it with a large-scale fa
 
 Solution 3 pushes a lot of heavy lifting into the SSD fleet. Host software can be though of as reducing to a thin dispatcher: issue CRC_Calc commands, buffer the x 64-bit results, encapsulate them in a single “aggregate-CRC” opcode, and wait for a final 64-bit reply. Error handling collapses to ordinary command retry semantics; no in-host shift/XOR logic or deep sequencing is required, making the host implementation the lightest of the three.
 
-On the drive side, because each SSD’s CRC result becomes the seed for the next drive, device firmware must maintain a finely ordered pipeline not just at the device’s multi cmd level (where it must maintain extent -> IO cmd ordering), but now also at the extent’s ordering level by: issue extent commands strictly in LBA order, issue IO commands strictly in LBA order, persist the in-flight seed CRC at IO level, persist the in-flight seed CRC at extent level, throttle retries, and recover deterministically if any cmd times-out or reorders completions. 
+On the drive side, because each SSD's CRC result becomes the seed for the next drive, device firmware must maintain a finely ordered pipeline not just at the device's multi cmd level (where it must maintain extent -> IO cmd ordering), but now also at the extent's ordering level by: issue extent commands strictly in LBA order, issue IO commands strictly in LBA order, persist the in-flight seed CRC at IO level, persist the in-flight seed CRC at extent level, throttle retries, and recover deterministically if any cmd times-out or reorders completions. 
 
 Solution 3 layers an additional aggregation service: parse an array of CRC_i + length_i tuples, perform the polynomial shift-and-XOR reduction in the DPU, and return the final CRC. This adds a custom opcode, modest scratch-buffer RAM, and a tight firmware loop, but remains a contained change relative to the broader FTL and command-parser surface. Overall, SSD firmware effort rises slightly from Solution 1/2 to Solution 3, while host complexity drops significantly.
 
@@ -299,7 +300,7 @@ Host CPU: Solution 3 is the lightest touch: the host merely dispatches CRC_Calc 
 
 Host memory: All three schemes allocate only control-plane state, but the scaling differs. Solution 1 keeps a slim cursor (seed CRC + LBA pointer) per in-flight object. Solutions 2 and 3 must hold an x-entry CRC vector until aggregation is finished; memory therefore grows with objects × stripe-width, yet remains modest because each entry is just 8 bytes.
 
-PCIe bandwidth: Solution 1 distributes the same 2x messages/object as the others but does so serially, producing a smooth, low-duty cycle (<1 % of a Gen4 x4 link). Solution 2 issues those messages in parallel, creating short bursts; average link load rises, though it is still minute relative to bulk I/O. Solution 3 adds exactly one extra cmd/resp pair—the Aggregate_CRC—to an arbitrator SSD, doubling that single lane’s control traffic yet leaving overall link utilization effectively unchanged.
+PCIe bandwidth: Solution 1 distributes the same 2x messages/object as the others but does so serially, producing a smooth, low-duty cycle (<1 % of a Gen4 x4 link). Solution 2 issues those messages in parallel, creating short bursts; average link load rises, though it is still minute relative to bulk I/O. Solution 3 adds exactly one extra cmd/resp pair—the Aggregate_CRC—to an arbitrator SSD, doubling that single lane's control traffic yet leaving overall link utilization effectively unchanged.
 
 
 
@@ -337,11 +338,11 @@ Code
 One of us had the idea of proving that the crc_combine() aggregation works through a code execution. And they recommended we prove it by creating a block with increasing byte values from 0x00 to 0xFF (and repeating) till it forms a 4096 element array called BLOCK (this is the initial 'incrementing pattern'). We also do this with a block of all zeros. 
 
 Once we create this block, we can perform 2 CRC calculations. 
-First would be a ‘monolithic’ CRC compute over these 2 blocks. 
+First would be a ‘monolithic' CRC compute over these 2 blocks. 
 Second would be dividing blocks into 2 parts, computing CRC for each block individually, and then aggregating them together. 
 The output of these 2 methods are then compared to each other. If they match, we know crc_combine() does its job of aggregating the values correctly together.
 
-Let’s review what is the output at the end of this code:
+Let's review what is the output at the end of this code:
 
 import textwrap, binascii
 
@@ -375,7 +376,7 @@ def crc64_nvme(data: bytes, crc: int = INIT) -> int:
    return crc ^ XOROUT
 
 
-# --- GF(2) matrix helpers (Mark Adler’s technique, widened to 64‑bit) ----
+# --- GF(2) matrix helpers (Mark Adler's technique, widened to 64‑bit) ----
 def _gf2_matrix_times(mat, vec):
    res, idx = 0, 0
    while vec:
@@ -420,7 +421,7 @@ def crc64_combine(crc1: int, crc2: int, len2: int) -> int:
    return (crc1 ^ crc2) & 0xFFFFFFFFFFFFFFFF
 
 
-# ---- Demonstration with NVMe spec’s incrementing‑pattern test vector ----
+# ---- Demonstration with NVMe spec's incrementing‑pattern test vector ----
 BLOCK = bytes([i & 0xFF for i in range(4096)])  # 0x00..0xFF repeating
 CRC_FULL = crc64_nvme(BLOCK)
 
@@ -473,7 +474,7 @@ Finally, we ask the question, how do we know that the values we obtain are indee
 
 
 
-As you can see, the highlighted values in the code output correspond to the value specified in the reference example of the NVMe spec. This proves 2 things: first, the CRC aggregation operation ensures that the ‘monolithic’ CRC is mathematically consistent with ‘aggregated’ CRC. Secondly, the CRC calculation we performed to verify is consistent with the CRC algorithm suggested in the NVMe spec (CRC64-NVMe).
+As you can see, the highlighted values in the code output correspond to the value specified in the reference example of the NVMe spec. This proves 2 things: first, the CRC aggregation operation ensures that the ‘monolithic' CRC is mathematically consistent with ‘aggregated' CRC. Secondly, the CRC calculation we performed to verify is consistent with the CRC algorithm suggested in the NVMe spec (CRC64-NVMe).
 
 `;
 
