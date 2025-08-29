@@ -25,13 +25,7 @@ export default function AnimatedSVGDiagram({
   state, 
   onTooltip, 
   onHideTooltip,
-  isPlaying,
-  onPlayComplete,
-  playbackSpeed,
-  currentStage,
-  setCurrentStage,
-  animationProgress,
-  setAnimationProgress
+  isPlaying
 }: AnimatedSVGDiagramProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   
