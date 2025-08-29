@@ -6,7 +6,7 @@ import { useRef, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MessageRoleEnum, MessageTypeEnum } from "./voice.type";
 import "./voice.css";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Mic, MicOff, Sparkles, Phone, Activity, Clock, MessageSquare } from "lucide-react";
 
 function Voice() {
     const { toggleCall, callStatus, audioLevel, messages, activeTranscript, isSpeechActive } = useVapi();
@@ -32,6 +32,41 @@ function Voice() {
         msg.type === MessageTypeEnum.MODEL_OUTPUT
       )
       .pop();
+
+    // Get latest function call if any
+    const latestFunctionCall = messages
+      .filter(msg => 
+        msg.role === MessageRoleEnum.ASSISTANT && 
+        msg.type === MessageTypeEnum.FUNCTION_CALL
+      )
+      .pop();
+
+    // Count total messages in conversation
+    const messageCount = messages.filter(msg => 
+      msg.type === MessageTypeEnum.MODEL_OUTPUT || 
+      msg.type === MessageTypeEnum.TRANSCRIPT
+    ).length;
+
+    // Calculate call duration
+    const [callDuration, setCallDuration] = useState(0);
+    useEffect(() => {
+      let interval: NodeJS.Timeout;
+      if (callStatus === "active") {
+        const startTime = Date.now();
+        interval = setInterval(() => {
+          setCallDuration(Math.floor((Date.now() - startTime) / 1000));
+        }, 1000);
+      } else {
+        setCallDuration(0);
+      }
+      return () => clearInterval(interval);
+    }, [callStatus]);
+
+    const formatDuration = (seconds: number) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
 
     const handleButtonClick = () => {
       toggleCall();
