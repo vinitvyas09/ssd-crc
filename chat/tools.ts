@@ -5,13 +5,26 @@ import { TavilyClient } from "tavily";
 // Helper function to add a small delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const CalculatorInputSchema = z.object({
-  operation: z.enum(["add", "subtract", "multiply", "divide"]).describe(
-    "The arithmetic operation to perform"
-  ),
-  a: z.number().describe("The first number"),
-  b: z.number().describe("The second number"),
-});
+// Input must be a JSON Schema object for OpenAI tools.
+// We support either an expression or structured args via optional fields.
+const CalculatorInputSchema = z
+  .object({
+    expression: z
+      .string()
+      .optional()
+      .describe(
+        'A simple arithmetic expression like "2+2", "3 * 7", or "234234234-423"'
+      ),
+    operation: z
+      .enum(["add", "subtract", "multiply", "divide"])
+      .optional()
+      .describe("The arithmetic operation to perform"),
+    a: z.number().optional().describe("The first number"),
+    b: z.number().optional().describe("The second number"),
+  })
+  .describe(
+    "Provide either an 'expression' or the trio of 'operation', 'a', and 'b'."
+  );
 
 const CalculatorOutputSchema = z.union([
   z.object({ result: z.number() }),
@@ -19,26 +32,55 @@ const CalculatorOutputSchema = z.union([
 ]);
 
 export const calculatorTool = tool({
-  description: "Perform arithmetic calculations with two numbers",
+  description:
+    "Perform arithmetic on two numbers. Pass either { operation, a, b } or an { expression } like '234234234-423'.",
   inputSchema: CalculatorInputSchema,
   outputSchema: CalculatorOutputSchema,
   execute: async (args: z.infer<typeof CalculatorInputSchema>) => {
     // Add a small delay to ensure the UI has time to show the "thinking" state
     await delay(1000);
 
+    // Allow either structured args or a free-form expression
+    if (args.expression != null && args.expression !== undefined) {
+      const expr = args.expression.trim();
+      // Support simple binary expressions: a op b (with optional spaces)
+      const m = expr.match(/^\s*(-?\d+(?:\.\d+)?)\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/);
+      if (!m) {
+        return { error: "Unsupported expression. Use simple forms like 2+2 or 3 * 7." } as const;
+      }
+      const a = Number(m[1]);
+      const op = m[2];
+      const b = Number(m[3]);
+      switch (op) {
+        case "+":
+          return { result: a + b } as const;
+        case "-":
+          return { result: a - b } as const;
+        case "*":
+          return { result: a * b } as const;
+        case "/":
+          if (b === 0) return { error: "Cannot divide by zero" } as const;
+          return { result: a / b } as const;
+        default:
+          return { error: "Unknown operator" } as const;
+      }
+    }
     const { operation, a, b } = args;
+    if (!operation || a === undefined || b === undefined) {
+      return { error: "Provide either an 'expression' or 'operation', 'a', and 'b'." } as const;
+    }
     switch (operation) {
       case "add":
-        return { result: a + b };
+        return { result: a + b } as const;
       case "subtract":
-        return { result: a - b };
+        return { result: a - b } as const;
       case "multiply":
-        return { result: a * b };
+        return { result: a * b } as const;
       case "divide":
-        if (b === 0) return { error: "Cannot divide by zero" };
-        return { result: a / b };
+        if (b === 0) return { error: "Cannot divide by zero" } as const;
+        return { result: a / b } as const;
       default:
-        return { error: "Unknown operation" };
+        return { error: "Unknown operation" } as const;
     }
   },
 });

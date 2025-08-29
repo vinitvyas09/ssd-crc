@@ -1,5 +1,5 @@
 import { openai } from "@ai-sdk/openai";
-import { streamText, convertToModelMessages, type UIMessage } from "ai";
+import { streamText, convertToModelMessages, type UIMessage, stepCountIs } from "ai";
 import { system_prompt } from "@/chat/prompt";
 import { calculatorTool, tavilySearchTool } from "@/chat/tools";
 
@@ -19,6 +19,25 @@ export async function POST(req: Request) {
     tools: {
       calculator: calculatorTool,
       tavilySearch: tavilySearchTool
+    },
+    stopWhen: stepCountIs(5), // Allow multi-step tool calls
+    onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
+      console.log("[API Route] Step finished:", {
+        hasText: !!text,
+        textLength: text?.length,
+        toolCallsCount: toolCalls?.length,
+        toolResultsCount: toolResults?.length,
+        finishReason
+      });
+      if (toolCalls?.length > 0) {
+        console.log("[API Route] Tool calls made:", toolCalls.map(tc => ({
+          toolName: tc.toolName,
+          input: tc.input
+        })));
+      }
+      if (toolResults?.length > 0) {
+        console.log("[API Route] Tool results:", toolResults);
+      }
     }
   });
 
@@ -39,6 +58,6 @@ export async function POST(req: Request) {
     console.error("[API Route] Error logging tool info:", e);
   }
 
-  // Return the data stream response
+  // Return the stream as UI message response  
   return result.toUIMessageStreamResponse();
 }

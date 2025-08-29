@@ -23,7 +23,8 @@ function useDebuggedChat(options: Parameters<typeof useChat>[0]) {
         parts: lastMessage.parts?.map((part) => ({
           type: part.type,
           state: (('state' in (part as object)) ? (part as { state?: string }).state : undefined),
-          text: part.type === 'text' ? part.text?.substring(0, 20) + '...' : undefined
+          text: part.type === 'text' ? part.text?.substring(0, 100) + (part.text?.length > 100 ? '...' : '') : undefined,
+          result: part.type?.startsWith('tool-') ? (part as any).result : undefined
         }))
       });
     }
@@ -199,8 +200,8 @@ export function Chat() {
                           return <div className="text-xs italic text-neutral-500 dark:text-neutral-400">...</div>;
                         }
                         
-                        // 2. Check if the message is in "tool call" state
-                        const isToolCall = message.parts.some((part) => (
+                        // 2. Check if the message is in "tool call" state (not completed)
+                        const activeToolCall = message.parts.find((part) => (
                           typeof (part as { type?: unknown }).type === 'string' &&
                           (part as { type: string }).type.startsWith('tool-') &&
                           (((part as { state?: string }).state === 'input-streaming') || ((part as { state?: string }).state === 'input-available'))
@@ -208,33 +209,49 @@ export function Chat() {
                         
                         // 3. Check if the message has text content
                         const textParts = message.parts.filter(part => part.type === 'text');
-                        const hasText = textParts.length > 0 && textParts.some(part => part.text.trim() !== '');
+                        const hasText = textParts.length > 0 && textParts.some(part => part.text && part.text.trim() !== '');
                         
-                        // If a tool is being called but there's no text yet, show the thinking state
-                        if (isToolCall && !hasText) {
+                        // If a tool is actively being called but there's no text yet, show the thinking state
+                        if (activeToolCall && !hasText) {
                           // Determine which tool is being called from the part type
-                          const toolPart = message.parts.find((p) => typeof (p as { type?: unknown }).type === 'string' && (p as { type: string }).type.startsWith('tool-')) as { type?: string } | undefined;
-                          const toolType = toolPart?.type ?? '';
+                          const toolType = (activeToolCall as { type: string }).type;
                           if (toolType === 'tool-tavilySearch') return <TavilySearch />;
                           if (toolType === 'tool-calculator') return <Calculator />;
                           return <div className="text-xs italic text-neutral-500 dark:text-neutral-400">Thinking…</div>;
                         }
                         
-                        // Otherwise, render all text parts
-                        return (
-                          <>
-                            {textParts.map((part, idx) => (
-                              <div key={`text-${idx}`} className="whitespace-pre-wrap text-sm leading-relaxed markdown-content">
-                                <ReactMarkdown
-                                  remarkPlugins={[remarkGfm]}
-                                  components={markdownComponents}
-                                >
-                                  {part.text}
-                                </ReactMarkdown>
-                              </div>
-                            ))}
-                          </>
-                        );
+                        // If we have text content, always render it (this includes tool results)
+                        if (hasText) {
+                          return (
+                            <>
+                              {textParts.map((part, idx) => (
+                                <div key={`text-${idx}`} className="whitespace-pre-wrap text-sm leading-relaxed markdown-content">
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={markdownComponents}
+                                  >
+                                    {part.text || ''}
+                                  </ReactMarkdown>
+                                </div>
+                              ))}
+                            </>
+                          );
+                        }
+                        
+                        // Check if there are completed tool parts waiting for text
+                        const completedToolCall = message.parts.find((part) => (
+                          typeof (part as { type?: unknown }).type === 'string' &&
+                          (part as { type: string }).type.startsWith('tool-') &&
+                          ((part as { state?: string }).state === 'result')
+                        ));
+                        
+                        if (completedToolCall) {
+                          console.log('Tool completed, waiting for text response:', completedToolCall);
+                          return <div className="text-xs italic text-neutral-500 dark:text-neutral-400">Processing result...</div>;
+                        }
+                        
+                        // Fallback for any other state
+                        return <div className="text-xs italic text-neutral-500 dark:text-neutral-400">Processing...</div>;
                       })()}
                     </>
                   )}
