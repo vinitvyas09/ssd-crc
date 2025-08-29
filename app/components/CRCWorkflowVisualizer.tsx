@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { WorkflowState, TooltipState, initialState, SolutionType, SOLUTIONS, ViewMode as DataViewMode } from '@/app/types/crc-workflow';
+import { WorkflowState, initialState, SolutionType, SOLUTIONS } from '@/app/types/crc-workflow';
 import { buildWorkflowModel } from '@/app/utils/workflow-model-builder';
 import ControlPanel from '@/app/components/crc-workflow/ControlPanel';
 import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram';
