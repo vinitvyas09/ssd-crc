@@ -8,6 +8,7 @@ import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram
 import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
 import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/EnhancedTooltip';
 import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
+import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type ViewMode = 'single' | 'compare' | 'timeline';
@@ -395,6 +396,14 @@ export default function CRCWorkflowVisualizer() {
               >
                 📊 Data Distribution
               </motion.button>
+              <motion.button
+                onClick={() => setState({ ...state, viewMode: 'ai' })}
+                className={`view-tab ${state.viewMode === 'ai' ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-3 py-1 rounded-md text-[11px] font-medium`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                🤖 AI Agent
+              </motion.button>
             </div>
             
             {/* Sub-View Mode Tabs (only for timing view) */}
@@ -494,14 +503,16 @@ export default function CRCWorkflowVisualizer() {
       </motion.header>
 
       <div className="flex h-[calc(100vh-40px)]">
-        {/* Control Panel */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="w-64 border-r border-[var(--grid)] bg-[var(--panel)] overflow-y-auto"
-        >
-          <ControlPanel state={state} setState={setState} />
-        </motion.div>
+        {/* Control Panel - Hide when AI view is active */}
+        {state.viewMode !== 'ai' && (
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="w-64 border-r border-[var(--grid)] bg-[var(--panel)] overflow-y-auto"
+          >
+            <ControlPanel state={state} setState={setState} />
+          </motion.div>
+        )}
 
         {/* Main Visualization Area */}
         <div className="flex-1 flex flex-col">
@@ -729,7 +740,17 @@ export default function CRCWorkflowVisualizer() {
           {/* Visualization Area with View Modes */}
           <div className="flex-1 relative overflow-hidden bg-gradient-to-br from-[var(--panel)] via-transparent to-[var(--panel-2)]">
             <AnimatePresence mode="wait">
-              {state.viewMode === 'distribution' ? (
+              {state.viewMode === 'ai' ? (
+                <motion.div
+                  key="ai"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="h-full overflow-auto"
+                >
+                  <Chat />
+                </motion.div>
+              ) : state.viewMode === 'distribution' ? (
                 <motion.div
                   key="distribution"
                   initial={{ opacity: 0, scale: 0.95 }}
