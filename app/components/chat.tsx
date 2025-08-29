@@ -147,7 +147,7 @@ export function Chat() {
   };
 
   return (
-    <div className="flex flex-col w-full max-w-3xl mx-auto h-full min-h-[60vh] mt-3 sm:mt-6 rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 shadow-lg font-sans">
+    <div className="flex flex-col w-full max-w-3xl mx-auto h-full min-h-[72vh] mt-3 sm:mt-6 rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 shadow-lg font-sans">
       <div 
         ref={chatContainerRef} 
         className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-thumb-rounded-full hover:scrollbar-thumb-neutral-400 dark:scrollbar-thumb-zinc-700 dark:hover:scrollbar-thumb-zinc-600 scrollbar-track-transparent"
