@@ -364,7 +364,7 @@ export default function CRCWorkflowVisualizer() {
       <motion.header 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-50 glass-panel"
+        className="sticky top-0 z-50 glass-panel pt-2"
       >
         <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--grid)]">
           <div className="flex items-center gap-4">
@@ -521,7 +521,7 @@ export default function CRCWorkflowVisualizer() {
         </div>
       </motion.header>
 
-      <div className="flex h-[calc(100vh-60px)]">
+      <div className="flex h-[calc(100vh-68px)]">
         {/* Control Panel - Hide when AI view is active */}
         {state.viewMode !== 'ai' && (
           <motion.div
