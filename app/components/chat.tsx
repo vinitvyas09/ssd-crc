@@ -113,15 +113,28 @@ export function Chat() {
     ul: ({children}) => <ul className="list-disc pl-5 mb-2">{children}</ul>,
     ol: ({children}) => <ol className="list-decimal pl-5 mb-2">{children}</ol>,
     li: ({children}) => <li className="mb-1">{children}</li>,
-    a: ({children, href}) => <a href={href} className="text-amber-600 dark:text-amber-400 hover:underline">{children}</a>,
-    blockquote: ({children}) => <blockquote className="border-l-2 border-neutral-300 dark:border-neutral-600 pl-3 italic my-2">{children}</blockquote>,
+    a: ({children, href}) => (
+      <a href={href} className="hover:underline" style={{ color: 'var(--accent)' }}>
+        {children}
+      </a>
+    ),
+    blockquote: ({children}) => (
+      <blockquote className="pl-3 italic my-2" style={{ borderLeft: '2px solid var(--accent)', color: 'var(--muted)' }}>
+        {children}
+      </blockquote>
+    ),
     code: ({ className, children, ...props }) => {
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match && !className;
       return isInline ? (
-        <code className="bg-neutral-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+        <code className="px-1 py-0.5 rounded text-xs font-mono" 
+              style={{ background: 'var(--panel-2)', color: 'var(--accent)' }}>
+          {children}
+        </code>
       ) : (
-        <code className="block bg-neutral-100 dark:bg-zinc-800/80 p-2 rounded-md text-xs font-mono overflow-x-auto my-2" {...props}>
+        <code className="block p-2 rounded-md text-xs font-mono overflow-x-auto my-2" 
+              style={{ background: 'var(--panel-2)', color: 'var(--fg)' }} 
+              {...props}>
           {children}
         </code>
       );
@@ -129,15 +142,23 @@ export function Chat() {
   };
 
   return (
-    <div className="flex flex-col w-full max-w-3xl mx-auto h-full min-h-[72vh] mt-3 sm:mt-6 rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 shadow-lg font-sans">
+    <div className="flex flex-col w-full max-w-3xl mx-auto h-full min-h-[72vh] mt-3 sm:mt-6 rounded-xl overflow-hidden shadow-lg font-sans" 
+         style={{ 
+           background: 'var(--panel)', 
+           border: '1px solid var(--grid)' 
+         }}>
       <div 
         ref={chatContainerRef} 
-        className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-thumb-rounded-full hover:scrollbar-thumb-neutral-400 dark:scrollbar-thumb-zinc-700 dark:hover:scrollbar-thumb-zinc-600 scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent"
+        style={{
+          '--scrollbar-thumb': 'var(--muted)',
+          '--scrollbar-thumb-hover': 'var(--fg)'
+        } as React.CSSProperties}
       >
         <div className="p-4 sm:p-6 space-y-5">
           {messages.length === 0 && (
             <div className="text-center py-16 sm:py-24">
-              <div className="text-neutral-400 font-light">How can I help you today?</div>
+              <div className="font-light" style={{ color: 'var(--muted)' }}>How can I help you today?</div>
             </div>
           )}
           {messages.map((message, index) => (
@@ -146,12 +167,20 @@ export function Chat() {
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              <div className={`p-4 rounded-lg max-w-[90%] sm:max-w-[85%] ${
-                message.role === 'user' 
-                  ? 'bg-amber-50 dark:bg-amber-950/30 text-neutral-800 dark:text-neutral-200 border border-amber-100 dark:border-amber-900/30' 
-                  : 'bg-neutral-50 dark:bg-zinc-800/80 text-neutral-800 dark:text-neutral-200 border border-neutral-100 dark:border-zinc-700/80'
-              } shadow-sm transition-all`}>
-                <div className="font-medium text-xs text-neutral-500 dark:text-neutral-400 mb-1.5">
+              <div className={`p-4 rounded-lg max-w-[90%] sm:max-w-[85%] shadow-sm transition-all`}
+                   style={{
+                     background: message.role === 'user' 
+                       ? 'var(--accent)' 
+                       : 'var(--panel-2)',
+                     border: message.role === 'user'
+                       ? '1px solid var(--accent-hover)'
+                       : '1px solid var(--grid)',
+                     color: message.role === 'user' ? 'white' : 'var(--fg)'
+                   }}>
+                <div className="font-medium text-xs mb-1.5" 
+                     style={{ 
+                       color: message.role === 'user' ? 'rgba(255,255,255,0.8)' : 'var(--muted)' 
+                     }}>
                   {message.role === 'user' ? 'You' : 'Assistant'}
                 </div>
                 <div className="prose-sm dark:prose-invert max-w-none">
@@ -244,12 +273,26 @@ export function Chat() {
           <div ref={messagesEndRef} />
         </div>
       </div>
-      <div className="border-t border-neutral-200 dark:border-zinc-800 p-3 sm:p-4 bg-neutral-50 dark:bg-zinc-900">
+      <div className="p-3 sm:p-4" 
+           style={{ 
+             borderTop: '1px solid var(--grid)', 
+             background: 'var(--panel-2)' 
+           }}>
         <form onSubmit={handleFormSubmit} className="relative flex items-center">
-          <div className="relative flex-1 overflow-hidden rounded-full border border-neutral-200 dark:border-zinc-700 focus-within:border-amber-300 dark:focus-within:border-amber-700 focus-within:ring-2 focus-within:ring-amber-200 dark:focus-within:ring-amber-900/30 transition-all bg-white dark:bg-zinc-800">
+          <div className="relative flex-1 overflow-hidden rounded-full transition-all"
+               style={{
+                 border: '1px solid var(--grid)',
+                 background: 'var(--panel)'
+               }}>
             <textarea
               ref={textareaRef}
-              className="w-full bg-transparent text-neutral-800 dark:text-neutral-200 pl-5 pr-12 py-2.5 focus:outline-none placeholder-neutral-400 text-sm resize-none overflow-y-auto min-h-[46px] max-h-[116px] leading-[1.5rem] align-middle"
+              className="w-full bg-transparent pl-5 pr-12 py-2.5 focus:outline-none text-sm resize-none overflow-y-auto min-h-[46px] max-h-[116px] leading-[1.5rem] align-middle"
+              style={{
+                color: 'var(--fg)',
+                '--placeholder-color': 'var(--muted)',
+                paddingTop: input ? '0.625rem' : '0.75rem',
+                paddingBottom: input ? '0.625rem' : '0.75rem'
+              } as React.CSSProperties}
               value={input}
               onChange={(e) => {
                 setInput(e.target.value);
@@ -264,16 +307,18 @@ export function Chat() {
               placeholder="Type a message..."
               disabled={status === 'submitted' || status === 'streaming'}
               rows={1}
-              style={{
-                paddingTop: input ? '0.625rem' : '0.75rem',
-                paddingBottom: input ? '0.625rem' : '0.75rem'
-              }}
             />
             <button 
               type="submit" 
               disabled={status === 'submitted' || status === 'streaming'}
-              className="absolute right-1.5 top-1/2 transform -translate-y-1/2 bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded-full hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50 disabled:hover:bg-amber-600"
+              className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-2.5 rounded-full hover:shadow-md transition-all focus:outline-none disabled:opacity-50"
+              style={{
+                background: 'var(--accent)',
+                '--hover-bg': 'var(--accent-hover)'
+              } as React.CSSProperties}
               aria-label="Send message"
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'var(--accent)'}
             >
               <Send size={16} className="text-white" />
             </button>
