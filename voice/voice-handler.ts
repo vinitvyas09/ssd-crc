@@ -132,14 +132,13 @@ export function useVapi() {
     try {
       console.log('Starting Vapi call with config:', { 
         token: process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN ? '[SET]' : '[MISSING]',
-        serverUrl: assistant.serverUrl,
         assistantName: assistant.name,
         model: assistant.model.provider,
         hasSystemPrompt: !!assistant.model.systemPrompt,
-        functionsCount: assistant.model.functions?.length || 0
+        toolsCount: assistant.model.tools?.length || 0
       });
       
-      const response = await vapi.start(assistant);
+      const response = await vapi.start(assistant as any);
       console.log("Vapi call started successfully");
     } catch (error) {
       if (error instanceof Error) {
