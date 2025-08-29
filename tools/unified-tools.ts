@@ -74,51 +74,82 @@ export const CALCULATOR_TOOL = {
   
   // Shared execution logic
   execute: async (args: any) => {
+    console.log("[Calculator Tool] Executing with args:", args);
     await delay(1000);
     
     // Handle expression format
     if (args.expression != null && args.expression !== undefined) {
       const expr = args.expression.trim();
+      console.log("[Calculator Tool] Processing expression:", expr);
       const m = expr.match(/^\s*(-?\d+(?:\.\d+)?)\s*([\+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/);
       if (!m) {
+        console.error("[Calculator Tool] Invalid expression format:", expr);
         return { error: "Unsupported expression. Use simple forms like 2+2 or 3 * 7." } as const;
       }
       const a = Number(m[1]);
       const op = m[2];
       const b = Number(m[3]);
+      console.log(`[Calculator Tool] Parsed: ${a} ${op} ${b}`);
+      
+      let result;
       switch (op) {
         case "+":
-          return { result: a + b } as const;
+          result = { result: a + b } as const;
+          break;
         case "-":
-          return { result: a - b } as const;
+          result = { result: a - b } as const;
+          break;
         case "*":
-          return { result: a * b } as const;
+          result = { result: a * b } as const;
+          break;
         case "/":
-          if (b === 0) return { error: "Cannot divide by zero" } as const;
-          return { result: a / b } as const;
+          if (b === 0) {
+            console.error("[Calculator Tool] Division by zero attempted");
+            return { error: "Cannot divide by zero" } as const;
+          }
+          result = { result: a / b } as const;
+          break;
         default:
+          console.error("[Calculator Tool] Unknown operator:", op);
           return { error: "Unknown operator" } as const;
       }
+      console.log("[Calculator Tool] Expression result:", result);
+      return result;
     }
     
     // Handle structured format
     const { operation, a, b } = args;
+    console.log(`[Calculator Tool] Structured format: operation=${operation}, a=${a}, b=${b}`);
+    
     if (!operation || a === undefined || b === undefined) {
+      console.error("[Calculator Tool] Missing required parameters:", { operation, a, b });
       return { error: "Provide either an 'expression' or 'operation', 'a', and 'b'." } as const;
     }
+    
+    let result;
     switch (operation) {
       case "add":
-        return { result: a + b } as const;
+        result = { result: a + b } as const;
+        break;
       case "subtract":
-        return { result: a - b } as const;
+        result = { result: a - b } as const;
+        break;
       case "multiply":
-        return { result: a * b } as const;
+        result = { result: a * b } as const;
+        break;
       case "divide":
-        if (b === 0) return { error: "Cannot divide by zero" } as const;
-        return { result: a / b } as const;
+        if (b === 0) {
+          console.error("[Calculator Tool] Division by zero attempted");
+          return { error: "Cannot divide by zero" } as const;
+        }
+        result = { result: a / b } as const;
+        break;
       default:
+        console.error("[Calculator Tool] Unknown operation:", operation);
         return { error: "Unknown operation" } as const;
     }
+    console.log("[Calculator Tool] Structured result:", result);
+    return result;
   }
 };
 
@@ -300,14 +331,23 @@ export function getVapiFunctions() {
  * Execute a tool by name (for server-side function execution in Vapi)
  */
 export async function executeToolByName(name: string, args: any) {
+  console.log(`[ExecuteToolByName] Executing tool: ${name} with args:`, args);
+  
+  let result;
   switch (name) {
     case "calculator":
-      return CALCULATOR_TOOL.execute(args);
+      result = await CALCULATOR_TOOL.execute(args);
+      break;
     case "tavilySearch":
-      return TAVILY_SEARCH_TOOL.execute(args);
+      result = await TAVILY_SEARCH_TOOL.execute(args);
+      break;
     default:
-      return { error: `Unknown tool: ${name}` };
+      console.error(`[ExecuteToolByName] Unknown tool: ${name}`);
+      result = { error: `Unknown tool: ${name}` };
   }
+  
+  console.log(`[ExecuteToolByName] Tool ${name} execution complete:`, result);
+  return result;
 }
 
 // ============================================
