@@ -766,13 +766,18 @@ export default function CRCWorkflowVisualizer() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="h-full overflow-auto"
+                  style={{ background: 'var(--bg)' }}
                 >
-                  <div className="min-h-full bg-gradient-to-b from-amber-50/50 to-neutral-50 dark:from-zinc-950 dark:to-zinc-900 font-sans">
+                  <div className="min-h-full" style={{ background: 'linear-gradient(to bottom, var(--panel), var(--bg))' }}>
                     <header className="pt-8 sm:pt-12 pb-4 sm:pb-6 text-center">
-                      <h1 className="text-2xl sm:text-3xl font-semibold text-neutral-800 dark:text-neutral-100">
-                        CRC AI Assistant
+                      <h1 className="text-2xl sm:text-3xl font-semibold" style={{ color: 'var(--fg)' }}>
+                        <span className="bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)] bg-clip-text text-transparent">
+                          CRC AI Assistant
+                        </span>
                       </h1>
-                      <p className="text-neutral-500 dark:text-neutral-400 mt-1.5 text-sm tracking-wide">Ask any questions about the proposed CRC validation architectures.</p>
+                      <p className="mt-1.5 text-sm tracking-wide" style={{ color: 'var(--muted)' }}>
+                        Ask any questions about the proposed CRC validation architectures.
+                      </p>
                     </header>
                     <main className="container mx-auto px-3 sm:px-4">
                       <Chat />
