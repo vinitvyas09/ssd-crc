@@ -751,7 +751,7 @@ export default function CRCWorkflowVisualizer() {
                   <div className="min-h-full bg-gradient-to-b from-amber-50/50 to-neutral-50 dark:from-zinc-950 dark:to-zinc-900 font-sans">
                     <header className="pt-8 sm:pt-12 pb-4 sm:pb-6 text-center">
                       <h1 className="text-2xl sm:text-3xl font-semibold text-neutral-800 dark:text-neutral-100">
-                        CRC Assistant
+                        CRC AI Assistant
                       </h1>
                       <p className="text-neutral-500 dark:text-neutral-400 mt-1.5 text-sm tracking-wide">Ask any questions about the proposed CRC validation architectures.</p>
                     </header>
