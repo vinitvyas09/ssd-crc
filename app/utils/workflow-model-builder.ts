@@ -134,7 +134,7 @@ export function buildWorkflowModel(state: WorkflowState): WorkflowModel {
     // Host aggregation time scales with log₂ of shards (stripe width W)
     const hostAggStages = Math.ceil(Math.log2(Math.max(1, state.W)));
     const hostAggTime = Math.max(1, hostCombine * hostAggStages);
-    const totalElemsHostDisplay = Math.max(1, state.W * segs);
+    // const totalElemsHostDisplay = Math.max(1, state.W * segs); // Unused variable
     const hostLabel = state.showLabels 
       ? `Combine CRC`
       : '';
