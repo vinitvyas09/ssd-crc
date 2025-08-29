@@ -10,6 +10,7 @@ import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/Enha
 import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
 import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Voice } from '@/voice/voice-asst';
 
 type ViewMode = 'single' | 'compare' | 'timeline';
 
@@ -757,6 +758,7 @@ export default function CRCWorkflowVisualizer() {
                     </header>
                     <main className="container mx-auto px-3 sm:px-4">
                       <Chat />
+                      <Voice />
                     </main>
                   </div>
                 </motion.div>
