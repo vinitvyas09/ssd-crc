@@ -73,7 +73,25 @@ export function useVapi() {
     // Error handler for call failures
     const onError = (e: any) => {
       setCallStatus(CALL_STATUS.INACTIVE);
-      console.error(e);
+      
+      // Improved error logging
+      if (e && typeof e === 'object') {
+        // Check if it's an Error object
+        if (e instanceof Error) {
+          console.error('Vapi Error:', e.message, e);
+        } else if (e.error) {
+          // Check for nested error property
+          console.error('Vapi Error:', e.error, e);
+        } else if (e.message) {
+          // Check for message property
+          console.error('Vapi Error:', e.message, e);
+        } else {
+          // Log the full object with stringify for better visibility
+          console.error('Vapi Error:', JSON.stringify(e, null, 2));
+        }
+      } else {
+        console.error('Vapi Error:', e);
+      }
     };
 
     // Set up event listeners for the Vapi SDK
@@ -103,21 +121,32 @@ export function useVapi() {
    */
   const start = async () => {
     setCallStatus(CALL_STATUS.LOADING);
+    
+    // Validate configuration before starting
+    if (!process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN || process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN === 'vapi-web-token') {
+      console.error('Vapi Error: NEXT_PUBLIC_VAPI_WEB_TOKEN is not properly configured. Please set it in your .env.local file.');
+      setCallStatus(CALL_STATUS.INACTIVE);
+      return;
+    }
+    
     try {
-      console.log('Vapi config:', { 
+      console.log('Starting Vapi call with config:', { 
         token: process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN ? '[SET]' : '[MISSING]',
-        serverUrl: process.env.NEXT_PUBLIC_SERVER_URL ? '[SET]' : '[MISSING]',
-        assistantConfig: {
-          ...assistant,
-          // Don't log the entire system prompt as it's too large
-          model: { ...assistant.model, systemPrompt: assistant.model.systemPrompt ? '[SET]' : '[MISSING]' }
-        }
+        serverUrl: assistant.serverUrl,
+        assistantName: assistant.name,
+        model: assistant.model.provider,
+        hasSystemPrompt: !!assistant.model.systemPrompt,
+        functionsCount: assistant.model.functions?.length || 0
       });
       
       const response = await vapi.start(assistant);
-      // console.log("Vapi call started successfully:", response);
+      console.log("Vapi call started successfully");
     } catch (error) {
-      console.error("Error starting Vapi call:", error);
+      if (error instanceof Error) {
+        console.error("Error starting Vapi call:", error.message, error);
+      } else {
+        console.error("Error starting Vapi call:", error);
+      }
       setCallStatus(CALL_STATUS.INACTIVE);
     }
   };
