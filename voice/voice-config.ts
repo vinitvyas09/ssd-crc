@@ -18,12 +18,12 @@ export const assistant = {
   name: "Emily",
   voice: {
     voiceId: "tnSpp4vdxKPjI9w0GnoV",
-    provider: "11labs",
+    provider: "11labs" as const,
     stability: 0.5,
     similarityBoost: 0.75
   },
   model: {
-    provider: "openai",
+    provider: "openai" as const,
     model: "gpt-4.1",
     temperature: 0.7,
     systemPrompt: system_prompt,
