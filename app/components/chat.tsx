@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
@@ -33,6 +33,22 @@ function useDebuggedChat(options: Parameters<typeof useChat>[0]) {
   return chatHook;
 }
 
+// Minimal type for the message object received by onFinish
+type FinishMessage = {
+  id: string;
+  parts?: Array<
+    | { type: 'text'; text: string }
+    | {
+        type: 'tool-invocation';
+        toolInvocation: {
+          state?: string;
+          name?: string;
+          input?: Record<string, unknown>;
+        };
+      }
+  >;
+};
+
 export function Chat() {
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useDebuggedChat({
     initialMessages: [],
@@ -41,7 +57,7 @@ export function Chat() {
       // When a new response starts, we can log debugging info
       console.log('Chat response started:', { status: response.status });
     },
-    onFinish: (message: any) => {
+    onFinish: (message: FinishMessage) => {
       // When a response finishes, we can verify the final message structure
       console.log('Chat response finished:', { 
         id: message.id,
@@ -60,13 +76,13 @@ export function Chat() {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const lastScrollPositionRef = useRef(0);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     if (shouldAutoScroll) {
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }
-  };
+  }, [shouldAutoScroll]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -96,7 +112,7 @@ export function Chat() {
     if (shouldAutoScroll || isThinking) {
       scrollToBottom();
     }
-  }, [messages, shouldAutoScroll]);
+  }, [messages, shouldAutoScroll, scrollToBottom]);
 
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
@@ -132,7 +148,7 @@ export function Chat() {
     li: ({children}) => <li className="mb-1">{children}</li>,
     a: ({children, href}) => <a href={href} className="text-amber-600 dark:text-amber-400 hover:underline">{children}</a>,
     blockquote: ({children}) => <blockquote className="border-l-2 border-neutral-300 dark:border-neutral-600 pl-3 italic my-2">{children}</blockquote>,
-    code: ({node, className, children, ...props}) => {
+    code: ({ className, children, ...props }) => {
       const match = /language-(\w+)/.exec(className || '');
       const isInline = !match && !className;
       return isInline ? (
@@ -250,8 +266,8 @@ export function Chat() {
                                     isTavilySearch = true;
                                   }
                                 }
-                              } catch (e) {
-                                console.error("[Tool Detection] Error parsing tool invocation:", e);
+                              } catch {
+                                console.error("[Tool Detection] Error parsing tool invocation");
                               }
                             }
                           });
@@ -273,7 +289,7 @@ export function Chat() {
                                   console.log("[Tool Detection] Found string 'tavilySearch' in tool invocation");
                                   showTavilySearch = true;
                                 }
-                              } catch (e) {
+                              } catch {
                                 // Ignore errors
                               }
                             }
