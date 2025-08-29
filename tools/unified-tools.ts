@@ -304,14 +304,14 @@ export function getVercelAITools() {
   return {
     calculatorTool: tool({
       description: CALCULATOR_TOOL.description,
-      parameters: CALCULATOR_TOOL.zodSchema.input,
-      execute: CALCULATOR_TOOL.execute,
+      inputSchema: CALCULATOR_TOOL.zodSchema.input,
+      execute: CALCULATOR_TOOL.execute as any,
     }),
     
     tavilySearchTool: tool({
       description: TAVILY_SEARCH_TOOL.description,
-      parameters: TAVILY_SEARCH_TOOL.zodSchema.input,
-      execute: TAVILY_SEARCH_TOOL.execute,
+      inputSchema: TAVILY_SEARCH_TOOL.zodSchema.input,
+      execute: TAVILY_SEARCH_TOOL.execute as any,
     })
   };
 }
