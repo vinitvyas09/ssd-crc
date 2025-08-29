@@ -380,7 +380,7 @@ export default function CRCWorkflowVisualizer() {
             </div>
             
             {/* Sub-View Mode Tabs (only for timing view) - Moved to left side */}
-            {state.viewMode === 'timing' && (
+            {state.viewMode === 'timing' ? (
               <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-0.5">
                 {(['single', 'compare', 'timeline'] as ViewMode[]).map((mode) => (
                   <motion.button
@@ -397,6 +397,9 @@ export default function CRCWorkflowVisualizer() {
                   </motion.button>
                 ))}
               </div>
+            ) : (
+              /* Placeholder to maintain consistent height when tabs are hidden */
+              <div className="h-[34px]" />
             )}
           </div>
           
