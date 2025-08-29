@@ -33,10 +33,14 @@ export const assistant = {
     model: "gpt-4.1" as any,
     temperature: 0.7,
     systemPrompt: system_prompt,
-    functions: getVapiFunctions(),
+    tools: getVapiFunctions().map(tool => ({
+      type: "function" as const,
+      function: tool,
+      server: {
+        url: `${getServerUrl()}/api/voice/functions`
+      }
+    }))
   },
-  // Server URL for function execution
-  serverUrl: `${getServerUrl()}/api/voice/functions`,
   firstMessage:
     "Hey there! How can I assist you today?",
 };
