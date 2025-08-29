@@ -52,7 +52,7 @@ export const CALCULATOR_TOOL = {
     name: "calculator",
     description: "Perform arithmetic calculations with two numbers",
     parameters: {
-      type: "object",
+      type: "object" as const,
       properties: {
         operation: {
           type: "string",
@@ -196,7 +196,7 @@ export const TAVILY_SEARCH_TOOL = {
     name: "tavilySearch",
     description: "Search the web for current information using Tavily search API",
     parameters: {
-      type: "object",
+      type: "object" as const,
       properties: {
         query: {
           type: "string",
