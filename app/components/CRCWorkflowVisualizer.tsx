@@ -366,66 +366,84 @@ export default function CRCWorkflowVisualizer() {
         animate={{ opacity: 1, y: 0 }}
         className="sticky top-0 z-50 glass-panel"
       >
-        <div className="px-3 py-2 flex items-center justify-between border-b border-[var(--grid)]">
-          <div className="flex items-center gap-3">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--grid)]">
+          <div className="flex items-center gap-4">
             <div>
-              <h1 className="text-sm font-semibold tracking-tight flex items-center gap-1.5">
+              <h1 className="text-base font-semibold tracking-tight flex items-center gap-2">
                 <span className="bg-gradient-to-r from-[var(--accent)] to-[var(--accent-hover)] bg-clip-text text-transparent">
                   CRC Workflows
                 </span>
-                <span className="text-[9px] px-1 py-0.5 bg-[var(--panel-2)] rounded-full text-[var(--muted)]">
+                <span className="text-[10px] px-1.5 py-0.5 bg-[var(--panel-2)] rounded-full text-[var(--muted)]">
                   v0.5
                 </span>
               </h1>
             </div>
             
-            {/* Main View Mode Tabs */}
-            <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-0.5">
-              <motion.button
-                onClick={() => setState({ ...state, viewMode: 'timing' })}
-                className={`view-tab ${state.viewMode === 'timing' ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-3 py-1 rounded-md text-[11px] font-medium`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                ⏱️ Timing Analysis
-              </motion.button>
-              <motion.button
-                onClick={() => setState({ ...state, viewMode: 'distribution' })}
-                className={`view-tab ${state.viewMode === 'distribution' ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-3 py-1 rounded-md text-[11px] font-medium`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                📊 Data Distribution
-              </motion.button>
-              <motion.button
-                onClick={() => setState({ ...state, viewMode: 'ai' })}
-                className={`view-tab ${state.viewMode === 'ai' ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-3 py-1 rounded-md text-[11px] font-medium`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                🤖 AI Chatbot
-              </motion.button>
-            </div>
-            
-            {/* Sub-View Mode Tabs (only for timing view) */}
+            {/* Sub-View Mode Tabs (only for timing view) - Moved to left side */}
             {state.viewMode === 'timing' && (
-              <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-0.5 ml-2">
+              <div className="flex items-center bg-[var(--panel-2)] rounded-lg p-0.5">
                 {(['single', 'compare', 'timeline'] as ViewMode[]).map((mode) => (
                   <motion.button
                     key={mode}
                     onClick={() => setViewMode(mode)}
-                    className={`view-tab ${viewMode === mode ? 'active bg-[var(--panel)] text-[var(--fg)]' : 'text-[var(--muted)]'} px-2 py-1 rounded-md text-[10px] font-medium capitalize`}
+                    className={`view-tab ${viewMode === mode ? 'active bg-[var(--accent)] text-white' : 'text-[var(--muted)] hover:text-[var(--fg)]'} px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-all`}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    {mode === 'single' && '🎯'}
-                    {mode === 'compare' && '🔄'}
-                    {mode === 'timeline' && '📊'}
+                    {mode === 'single' && '⚡'}
+                    {mode === 'compare' && '⚖️'}
+                    {mode === 'timeline' && '📈'}
                     {' ' + mode}
                   </motion.button>
                 ))}
               </div>
             )}
+          </div>
+          
+          {/* Main View Mode Tabs - Centered with better labels */}
+          <div className="flex items-center gap-2 absolute left-1/2 transform -translate-x-1/2">
+            <motion.button
+              onClick={() => setState({ ...state, viewMode: 'timing' })}
+              className={`view-tab ${state.viewMode === 'timing' ? 'active bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--muted)] hover:text-[var(--fg)] bg-[var(--panel-2)]'} px-4 py-2 rounded-lg text-sm font-medium transition-all`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">⏱️</span>
+                <div className="text-left">
+                  <div className="text-xs font-semibold">Timing Analysis</div>
+                  <div className="text-[10px] opacity-75">Workflow Performance</div>
+                </div>
+              </div>
+            </motion.button>
+            <motion.button
+              onClick={() => setState({ ...state, viewMode: 'distribution' })}
+              className={`view-tab ${state.viewMode === 'distribution' ? 'active bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--muted)] hover:text-[var(--fg)] bg-[var(--panel-2)]'} px-4 py-2 rounded-lg text-sm font-medium transition-all`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">📊</span>
+                <div className="text-left">
+                  <div className="text-xs font-semibold">Data Distribution</div>
+                  <div className="text-[10px] opacity-75">Storage Architecture</div>
+                </div>
+              </div>
+            </motion.button>
+            <motion.button
+              onClick={() => setState({ ...state, viewMode: 'ai' })}
+              className={`view-tab ${state.viewMode === 'ai' ? 'active bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--muted)] hover:text-[var(--fg)] bg-[var(--panel-2)]'} px-4 py-2 rounded-lg text-sm font-medium transition-all`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🤖</span>
+                <div className="text-left">
+                  <div className="text-xs font-semibold">AI Assistant</div>
+                  <div className="text-[10px] opacity-75">Chat & Voice</div>
+                </div>
+              </div>
+            </motion.button>
           </div>
 
           {/* Playback Controls */}
@@ -503,7 +521,7 @@ export default function CRCWorkflowVisualizer() {
         </div>
       </motion.header>
 
-      <div className="flex h-[calc(100vh-40px)]">
+      <div className="flex h-[calc(100vh-60px)]">
         {/* Control Panel - Hide when AI view is active */}
         {state.viewMode !== 'ai' && (
           <motion.div
