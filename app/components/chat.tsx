@@ -9,28 +9,9 @@ import type { Components } from "react-markdown";
 import { Calculator } from "./tool-calculator";
 import { TavilySearch } from "./tool-tavilysearch";
 
-// Add debug logging to help understand what's happening with message updates
+// Simple wrapper around useChat for consistency
 function useDebuggedChat(options: Parameters<typeof useChat>[0]) {
-  const chatHook = useChat(options);
-  const { messages } = chatHook;
-  
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      console.log('Message updated:', {
-        id: lastMessage.id,
-        role: lastMessage.role,
-        parts: lastMessage.parts?.map((part) => ({
-          type: part.type,
-          state: (('state' in (part as object)) ? (part as { state?: string }).state : undefined),
-          text: part.type === 'text' ? part.text?.substring(0, 100) + (part.text?.length > 100 ? '...' : '') : undefined,
-          result: part.type?.startsWith('tool-') ? (part as any).result : undefined
-        }))
-      });
-    }
-  }, [messages]);
-  
-  return chatHook;
+  return useChat(options);
 }
 
 export function Chat() {
