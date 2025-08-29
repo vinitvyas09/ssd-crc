@@ -147,14 +147,14 @@ export function Chat() {
   };
 
   return (
-    <div className="flex flex-col w-full max-w-3xl mx-auto h-[78vh] rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 shadow-lg font-sans">
+    <div className="flex flex-col w-full max-w-3xl mx-auto h-full min-h-[60vh] mt-3 sm:mt-6 rounded-xl overflow-hidden bg-white dark:bg-zinc-900 border border-neutral-200 dark:border-zinc-800 shadow-lg font-sans">
       <div 
         ref={chatContainerRef} 
         className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 scrollbar-thumb-rounded-full hover:scrollbar-thumb-neutral-400 dark:scrollbar-thumb-zinc-700 dark:hover:scrollbar-thumb-zinc-600 scrollbar-track-transparent"
       >
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           {messages.length === 0 && (
-            <div className="text-center py-24">
+            <div className="text-center py-16 sm:py-24">
               <div className="text-neutral-400 font-light">How can I help you today?</div>
             </div>
           )}
@@ -164,7 +164,7 @@ export function Chat() {
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              <div className={`p-4 rounded-lg max-w-[85%] ${
+              <div className={`p-4 rounded-lg max-w-[90%] sm:max-w-[85%] ${
                 message.role === 'user' 
                   ? 'bg-amber-50 dark:bg-amber-950/30 text-neutral-800 dark:text-neutral-200 border border-amber-100 dark:border-amber-900/30' 
                   : 'bg-neutral-50 dark:bg-zinc-800/80 text-neutral-800 dark:text-neutral-200 border border-neutral-100 dark:border-zinc-700/80'
@@ -246,7 +246,7 @@ export function Chat() {
           <div ref={messagesEndRef} />
         </div>
       </div>
-      <div className="border-t border-neutral-200 dark:border-zinc-800 p-4 bg-neutral-50 dark:bg-zinc-900">
+      <div className="border-t border-neutral-200 dark:border-zinc-800 p-3 sm:p-4 bg-neutral-50 dark:bg-zinc-900">
         <form onSubmit={handleFormSubmit} className="relative flex items-center">
           <div className="relative flex-1 overflow-hidden rounded-full border border-neutral-200 dark:border-zinc-700 focus-within:border-amber-300 dark:focus-within:border-amber-700 focus-within:ring-2 focus-within:ring-amber-200 dark:focus-within:ring-amber-900/30 transition-all bg-white dark:bg-zinc-800">
             <textarea
