@@ -104,14 +104,19 @@ function Voice() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 flex items-center justify-center"
+              className="fixed inset-0 backdrop-blur-sm z-30 flex items-center justify-center"
+              style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
             >
               <motion.div 
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
-                className="bg-white/10 dark:bg-zinc-900/40 backdrop-blur-md rounded-2xl p-6 shadow-2xl border border-white/20 dark:border-zinc-700/30 max-w-2xl w-full mx-4"
+                className="backdrop-blur-md rounded-2xl p-6 shadow-2xl max-w-2xl w-full mx-4"
+                style={{ 
+                  background: 'var(--panel)',
+                  border: '1px solid var(--grid)'
+                }}
               >
                 {/* Audio Visualization */}
                 <div className="flex justify-center mb-6">
@@ -138,9 +143,9 @@ function Voice() {
                               opacity: isSpeechActive ? 0.7 + audioLevel * 0.3 : 0.3,
                               backgroundColor: callStatus === "active" ? 
                                 isSpeechActive ? 
-                                  "rgb(239, 68, 68)" : // red when user is speaking
-                                  "rgb(16, 185, 129)" // green when assistant is speaking
-                                : "rgb(251, 191, 36)" // amber when loading
+                                  "var(--accent)" : // blue when user is speaking
+                                  "var(--ok)" // green when assistant is speaking
+                                : "var(--warn)" // amber when loading
                             }}
                           />
                         ))}
@@ -153,7 +158,11 @@ function Voice() {
                 <div className="text-center mb-1">
                   <button 
                     onClick={toggleTranscript}
-                    className="text-white/50 hover:text-white/80 dark:text-zinc-400/50 dark:hover:text-zinc-400/80 text-xs font-light inline-flex items-center gap-1 transition-colors px-2 py-1 rounded-full bg-white/5 dark:bg-zinc-800/20 hover:bg-white/10 dark:hover:bg-zinc-800/40"
+                    className="text-xs font-light inline-flex items-center gap-1 transition-colors px-2 py-1 rounded-full hover:opacity-80"
+                    style={{
+                      color: 'var(--muted)',
+                      background: 'var(--panel-2)'
+                    }}
                   >
                     {showTranscript ? (
                       <>Hide transcript <ChevronUp size={12} /></>
@@ -179,7 +188,8 @@ function Voice() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.2 }}
-                        className="text-white/80 dark:text-zinc-200/80 italic font-light"
+                        className="italic font-light"
+                        style={{ color: 'var(--fg)' }}
                       >
                         "{activeTranscript.transcript}"
                       </motion.p>
@@ -189,7 +199,11 @@ function Voice() {
 
                 {/* Assistant Response & Info Section */}
                 <motion.div 
-                  className="px-6 py-4 rounded-xl bg-white/5 dark:bg-zinc-800/30 border border-white/10 dark:border-zinc-700/20"
+                  className="px-6 py-4 rounded-xl"
+                  style={{
+                    background: 'var(--panel-2)',
+                    border: '1px solid var(--grid)'
+                  }}
                   animate={{ 
                     boxShadow: isSpeechActive ? 
                       "0px 0px 0px rgba(255,255,255,0)" : 
@@ -210,16 +224,16 @@ function Voice() {
                           scale: { duration: 1, repeat: Infinity }
                         }}
                       >
-                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                        <Sparkles className="w-4 h-4" style={{ color: 'var(--ok)' }} />
                       </motion.div>
-                      <h3 className="text-white/70 dark:text-zinc-400 text-sm font-medium">
+                      <h3 className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
                         {callStatus === "loading" ? "Connecting" : "Assistant"}
                       </h3>
                     </div>
                     
                     {/* Call Stats */}
                     {callStatus === "active" && (
-                      <div className="flex items-center gap-3 text-xs text-white/50 dark:text-zinc-500">
+                      <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--muted)' }}>
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           <span>{formatDuration(callDuration)}</span>
@@ -244,7 +258,7 @@ function Voice() {
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.3 }}
                       >
-                        <p className="text-white dark:text-zinc-100 text-lg font-light leading-relaxed">
+                        <p className="text-lg font-light leading-relaxed" style={{ color: 'var(--fg)' }}>
                           {(latestAssistantMessage as any).output}
                         </p>
                         
@@ -253,9 +267,9 @@ function Voice() {
                           <motion.div 
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
-                            className="mt-3 pt-3 border-t border-white/10 dark:border-zinc-700/20"
+                            className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--grid)' }}
                           >
-                            <div className="flex items-center gap-2 text-xs text-amber-400/70">
+                            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--accent)' }}>
                               <Activity className="w-3 h-3" />
                               <span>Using: {(latestFunctionCall as any).functionCall?.name}</span>
                             </div>
@@ -270,7 +284,7 @@ function Voice() {
                         exit={{ opacity: 0 }}
                         className="space-y-2"
                       >
-                        <p className="text-white dark:text-zinc-100 text-lg font-light">
+                        <p className="text-lg font-light" style={{ color: 'var(--fg)' }}>
                           Setting up voice connection...
                         </p>
                         <div className="flex items-center gap-2">
@@ -278,7 +292,7 @@ function Voice() {
                             {[0, 1, 2].map((i) => (
                               <motion.div
                                 key={i}
-                                className="w-2 h-2 bg-emerald-400 rounded-full"
+                                className="w-2 h-2 rounded-full" style={{ background: 'var(--ok)' }}
                                 animate={{ 
                                   scale: [1, 1.5, 1],
                                   opacity: [0.5, 1, 0.5]
@@ -306,15 +320,15 @@ function Voice() {
                             animate={{ scale: [1, 1.2, 1] }}
                             transition={{ duration: 2, repeat: Infinity }}
                           >
-                            <Mic className="w-5 h-5 text-emerald-400" />
+                            <Mic className="w-5 h-5" style={{ color: 'var(--ok)' }} />
                           </motion.div>
-                          <p className="text-white dark:text-zinc-100 text-lg font-light">
+                          <p className="text-lg font-light" style={{ color: 'var(--fg)' }}>
                             Listening...
                           </p>
                         </div>
                         
                         {/* Helpful Tips */}
-                        <div className="space-y-2 text-white/40 dark:text-zinc-500 text-sm">
+                        <div className="space-y-2 text-sm" style={{ color: 'var(--muted)' }}>
                           <p className="italic">Try asking me to:</p>
                           <ul className="space-y-1 ml-4">
                             <li>• Search for current information</li>
@@ -331,8 +345,8 @@ function Voice() {
                         exit={{ opacity: 0 }}
                         className="flex items-center gap-2"
                       >
-                        <Activity className="w-5 h-5 text-red-400" />
-                        <p className="text-white dark:text-zinc-100 text-lg font-light">
+                        <Activity className="w-5 h-5" style={{ color: 'var(--accent)' }} />
+                        <p className="text-lg font-light" style={{ color: 'var(--fg)' }}>
                           Processing your request...
                         </p>
                       </motion.div>
