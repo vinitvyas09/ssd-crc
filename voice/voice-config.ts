@@ -1,6 +1,6 @@
-import { system_prompt } from "@/app/api/prompt";
+import { system_prompt } from "@/chat/prompt";
 import { CreateAssistantDTO } from "@vapi-ai/web/dist/api";
-import { calculatorTool, tavilySearchTool } from "@/app/api/tools";
+import { calculatorTool, tavilySearchTool } from "@/chat/tools";
 
 export const assistant: CreateAssistantDTO | any = {
   name: "Emily",
