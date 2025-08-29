@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { WorkflowModel, TooltipState } from '@/app/types/crc-workflow';
+import { WorkflowModel } from '@/app/types/crc-workflow';
 
 interface SVGDiagramProps {
   model: WorkflowModel;
