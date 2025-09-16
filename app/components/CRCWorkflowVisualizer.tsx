@@ -582,8 +582,14 @@ export default function CRCWorkflowVisualizer() {
       return;
     }
     const scenarioSnapshot = cloneEnterpriseScenario(enterpriseDraftScenario);
+    const baseCalibration = scenarioSnapshot.calibration ?? {
+      profileId: null,
+      useProfileDefaults: true,
+      warnings: [],
+    };
     scenarioSnapshot.calibration = {
-      ...(scenarioSnapshot.calibration ?? {}),
+      ...baseCalibration,
+      warnings: baseCalibration.warnings ?? [],
       label,
     };
     const profile = scenarioToCalibrationProfile(scenarioSnapshot, { label, source: 'manual' });
