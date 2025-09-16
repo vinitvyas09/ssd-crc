@@ -128,8 +128,8 @@ export const ENTERPRISE_PHASE2_PRESET: EnterpriseScenario = {
     c2: 7,
   },
   ssdCoefficients: {
-    d0: 8,
-    d1: 0.6,
+    d0: 64,
+    d1: 2.2,
   },
   nvmeLatencyUs: 12,
   crcPer4kUs: 95,
