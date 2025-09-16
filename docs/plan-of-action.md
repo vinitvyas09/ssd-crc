@@ -115,7 +115,7 @@ Allow users to pick **any** of S1, S2, S3 and see the different critical paths; 
 
 **Acceptance**
 
-* For identical inputs: `Latency(S1) > Latency(S2) ≥ Latency(S3)` (given `d0+d1·x < c0+c1·x+c2·log2(x)`).
+* For identical inputs: `Latency(S1) > Latency(S2)`; S3 varies with device coefficients (defaults assume slower ARM aggregation so `Latency(S3) ≥ Latency(S2)` until tuned).
 * CSV export rows sum to the object latency within ±1 µs (deterministic).
 
 **Out of scope now**: randomness, failures, Compare, Heatmap.
