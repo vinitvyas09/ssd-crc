@@ -611,6 +611,8 @@ export interface EnterpriseResultsProps {
   result: SimulationResult;
   compareResults?: SimulationResult[];
   draftScenario: EnterpriseScenario;
+  isRunning: boolean;
+  progress: number;
   showCritical: boolean;
   onToggleCritical: () => void;
   eventsOpen: boolean;
@@ -663,6 +665,8 @@ interface EnterpriseCompareResultsProps {
   importError: string | null;
   fileInputRef: React.RefObject<HTMLInputElement>;
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  isRunning: boolean;
+  progress: number;
 }
 
 const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
@@ -675,6 +679,8 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
   importError,
   fileInputRef,
   onImportFile,
+  isRunning,
+  progress,
 }) => {
   const sorted = [...results].sort((a, b) => a.kpis.p99Us - b.kpis.p99Us);
   const bestP99 = sorted.length > 0 ? sorted[0].kpis.p99Us : 0;
@@ -717,10 +723,22 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
           <input ref={fileInputRef} type="file" accept=".json" hidden onChange={onImportFile} />
           <button
             onClick={onRun}
-            className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30"
+            className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isRunning}
           >
             Run Comparison
           </button>
+          {(isRunning || progress > 0) && (
+            <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+              <span>{isRunning ? `Running ${Math.min(100, Math.round(progress))}%` : `Done ${Math.min(100, Math.round(progress))}%`}</span>
+              <div className="h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
+                <div
+                  className="h-full bg-sky-500 transition-all"
+                  style={{ width: `${Math.min(100, progress)}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -822,6 +840,8 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
   result,
   compareResults,
   draftScenario,
+  isRunning,
+  progress,
   showCritical,
   onToggleCritical,
   eventsOpen,
@@ -846,6 +866,8 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         importError={importError}
         fileInputRef={fileInputRef}
         onImportFile={onImportFile}
+        isRunning={isRunning}
+        progress={progress}
       />
     );
   }
@@ -922,10 +944,19 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
           </button>
           <button
             onClick={onRun}
-            className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30"
+            className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isRunning}
           >
             Run Simulation
           </button>
+          {(isRunning || progress > 0) && (
+            <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+              <span>{isRunning ? `Running ${Math.min(100, Math.round(progress))}%` : `Done ${Math.min(100, Math.round(progress))}%`}</span>
+              <div className="h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
+                <div className="h-full bg-sky-500 transition-all" style={{ width: `${Math.min(100, progress)}%` }} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -965,11 +996,25 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
             ))}
           </div>
 
-          <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30">
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30 relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-3">
               <div className="text-sm font-semibold">Timeline</div>
               <div className="text-[11px] text-zinc-500">Horizon {formatMicros(total)}</div>
             </div>
+            {(isRunning || progress > 0) && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-zinc-950/70 backdrop-blur-sm">
+                <div className="text-sm font-semibold text-sky-200">
+                  {isRunning ? 'Running enterprise simulation…' : 'Simulation complete'}
+                </div>
+                <div className="h-1.5 w-40 overflow-hidden rounded bg-zinc-800">
+                  <div
+                    className="h-full bg-sky-500 transition-all"
+                    style={{ width: `${Math.min(100, progress)}%` }}
+                  />
+                </div>
+                <div className="text-xs text-zinc-400">{Math.min(100, Math.round(progress))}%</div>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <div className="space-y-3 px-6 py-4">
                 {result.lanes.map((lane) => {
