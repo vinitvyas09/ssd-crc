@@ -16,6 +16,9 @@ export const ENTERPRISE_BASELINE_SCENARIO: EnterpriseScenario = {
     d0: 64,
     d1: 2.2,
   },
+  stripeMapSource: 'uniform',
+  stripeAssignments: undefined,
+  accessOrder: 'stripe',
   nvmeLatencyUs: 12,
   crcPer4kUs: 110,
   crcSigmaPer4kUs: 35,
@@ -28,6 +31,7 @@ export const ENTERPRISE_BASELINE_SCENARIO: EnterpriseScenario = {
   retryMaxAttempts: 3,
   orchestrationOverheadUs: 18,
   mdtsBytes: 128 * 1024,
+  readNlb: 1,
   solution: 's2',
   aggregatorPolicy: 'pinned',
   randomSeed: 1337,
@@ -45,6 +49,7 @@ export const cloneEnterpriseScenario = (scenario: EnterpriseScenario): Enterpris
     ...scenario,
     hostCoefficients: { ...scenario.hostCoefficients },
     ssdCoefficients: { ...scenario.ssdCoefficients },
+    stripeAssignments: scenario.stripeAssignments ? [...scenario.stripeAssignments] : undefined,
     calibration: scenario.calibration
       ? {
           ...scenario.calibration,
@@ -70,6 +75,11 @@ const applyPresetOverrides = (overrides: Partial<EnterpriseScenario>): Enterpris
   return {
     ...base,
     ...overrides,
+    stripeAssignments: overrides.stripeAssignments
+      ? [...overrides.stripeAssignments]
+      : base.stripeAssignments
+        ? [...base.stripeAssignments]
+        : undefined,
     hostCoefficients: {
       ...base.hostCoefficients,
       ...(overrides.hostCoefficients ?? {}),
