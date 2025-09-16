@@ -1,4 +1,5 @@
 import type {
+  AccessOrder,
   AggregationTree,
   AggregationTreeStage,
   AggregatorPolicy,
@@ -17,6 +18,7 @@ import type {
   SimulationKPIs,
   SimulationResult,
   SsdCoefficients,
+  StripeMapSource,
   TimelineLane,
   TimelineSegment,
   TimelineSegmentKind,
@@ -94,6 +96,15 @@ const createRng = (seed: number): (() => number) => {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+};
+
+const shuffleInPlace = <T>(array: T[], rng: () => number): void => {
+  for (let index = array.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    const tmp = array[index];
+    array[index] = array[swapIndex];
+    array[swapIndex] = tmp;
+  }
 };
 
 const sampleNormal = (rng: () => number): number => {
@@ -258,20 +269,48 @@ const normaliseCalibration = (calibration?: ScenarioCalibration): ScenarioCalibr
   };
 };
 
+const sanitiseStripeAssignments = (input: unknown, stripeWidth: number): number[] => {
+  if (!Array.isArray(input) || stripeWidth <= 0) {
+    return [];
+  }
+  const maxLane = Math.max(0, stripeWidth - 1);
+  const assignments: number[] = [];
+  for (const entry of input) {
+    if (typeof entry !== 'number' || Number.isNaN(entry)) {
+      continue;
+    }
+    const laneIndex = clamp(Math.round(entry), 0, maxLane);
+    assignments.push(laneIndex);
+  }
+  return assignments;
+};
+
 const normaliseScenario = (scenario: EnterpriseScenario): EnterpriseScenario => {
   const calibration = normaliseCalibration(scenario.calibration);
   const solution: EnterpriseSolution = ['s1', 's2', 's3'].includes(scenario.solution)
     ? scenario.solution
     : 's2';
-  const aggregatorPolicy: AggregatorPolicy = scenario.aggregatorPolicy === 'roundRobin' ? 'roundRobin' : 'pinned';
+  const aggregatorPolicy: AggregatorPolicy = ['roundRobin', 'leastLoaded'].includes(scenario.aggregatorPolicy)
+    ? scenario.aggregatorPolicy
+    : 'pinned';
+
+  const stripeWidth = clamp(Math.round(scenario.stripeWidth), 1, 64);
+  const rawAssignments = sanitiseStripeAssignments(scenario.stripeAssignments, stripeWidth);
+  const stripeMapSource: StripeMapSource =
+    scenario.stripeMapSource === 'imported' && rawAssignments.length > 0 ? 'imported' : 'uniform';
+  const accessOrder: AccessOrder = scenario.accessOrder === 'randomized' ? 'randomized' : 'stripe';
+  const readNlb = clamp(Math.round(scenario.readNlb ?? 1), 1, 16);
 
   const normalised: EnterpriseScenario = {
-    stripeWidth: clamp(Math.round(scenario.stripeWidth), 1, 64),
+    stripeWidth,
     objectsInFlight: clamp(Math.round(scenario.objectsInFlight), 1, 16),
     fileSizeMB: clamp(scenario.fileSizeMB, 0.5, 4096),
     chunkSizeKB: clamp(scenario.chunkSizeKB, 4, 2048),
     queueDepth: clamp(Math.round(scenario.queueDepth), 1, 64),
     threads: clamp(Math.round(scenario.threads), 1, 256),
+    stripeMapSource,
+    stripeAssignments: stripeMapSource === 'imported' ? rawAssignments : undefined,
+    accessOrder,
     hostCoefficients: {
       c0: clamp(scenario.hostCoefficients.c0, 0, 500),
       c1: clamp(scenario.hostCoefficients.c1, 0, 50),
@@ -295,6 +334,7 @@ const normaliseScenario = (scenario: EnterpriseScenario): EnterpriseScenario => 
     retryMaxAttempts: clamp(Math.round(scenario.retryMaxAttempts), 1, 10),
     orchestrationOverheadUs: clamp(scenario.orchestrationOverheadUs, 0, 500),
     mdtsBytes: clamp(Math.round(scenario.mdtsBytes), 4096, 16 * 1024 * 1024),
+    readNlb,
     solution,
     aggregatorPolicy,
     randomSeed: clamp(Math.round(scenario.randomSeed), 1, 2_147_483_647),
@@ -320,6 +360,9 @@ const normaliseScenario = (scenario: EnterpriseScenario): EnterpriseScenario => 
     if (typeof calibration.mdtsBytes === 'number') {
       normalised.mdtsBytes = clamp(Math.round(calibration.mdtsBytes), 4096, 16 * 1024 * 1024);
     }
+    if (typeof calibration.readNlb === 'number') {
+      normalised.readNlb = clamp(Math.round(calibration.readNlb), 1, 16);
+    }
     if (calibration.hostCoefficients) {
       normalised.hostCoefficients = {
         c0: calibration.hostCoefficients.c0 ?? normalised.hostCoefficients.c0,
@@ -335,6 +378,11 @@ const normaliseScenario = (scenario: EnterpriseScenario): EnterpriseScenario => 
     }
   }
 
+  if (normalised.stripeMapSource === 'imported' && (!normalised.stripeAssignments || normalised.stripeAssignments.length === 0)) {
+    normalised.stripeMapSource = 'uniform';
+    normalised.stripeAssignments = undefined;
+  }
+
   return normalised;
 };
 
@@ -345,22 +393,35 @@ const buildChunkInfos = (
 ): ChunkInfo[] => {
   const totalChunks = Math.max(1, Math.ceil(fileBytes / chunkBytes));
   const mdts = Math.max(4096, scenario.mdtsBytes);
+  const maxCommandBytes = Math.max(4096, Math.min(mdts, scenario.readNlb * 4096));
+  const assignments = scenario.stripeAssignments && scenario.stripeAssignments.length > 0
+    ? [...scenario.stripeAssignments]
+    : Array.from({ length: scenario.stripeWidth }, (_, index) => index);
   const chunkInfos: ChunkInfo[] = [];
 
   for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
     const stripeIndex = Math.floor(chunkIndex / scenario.stripeWidth);
-    const laneIndex = chunkIndex % scenario.stripeWidth;
+    const position = chunkIndex % scenario.stripeWidth;
+    let laneIndex: number;
+    if (assignments.length >= totalChunks) {
+      laneIndex = assignments[chunkIndex] ?? position;
+    } else if (assignments.length > 0) {
+      laneIndex = assignments[position % assignments.length] ?? position;
+    } else {
+      laneIndex = position;
+    }
+    laneIndex = clamp(Math.round(laneIndex), 0, Math.max(0, scenario.stripeWidth - 1));
     const startByte = chunkIndex * chunkBytes;
     const remaining = Math.min(chunkBytes, Math.max(fileBytes - startByte, 0));
     const segments: number[] = [];
     let bytesRemaining = remaining;
     while (bytesRemaining > 0) {
-      const take = Math.min(mdts, bytesRemaining);
+      const take = Math.min(maxCommandBytes, bytesRemaining);
       segments.push(take);
       bytesRemaining -= take;
     }
     if (segments.length === 0) {
-      segments.push(Math.min(mdts, chunkBytes));
+      segments.push(Math.min(maxCommandBytes, chunkBytes));
     }
     chunkInfos.push({
       chunkIndex,
@@ -380,18 +441,35 @@ const buildLaneJobs = (
   stripes: number,
 ): CommandJob[][] => {
   const laneJobs: CommandJob[][] = Array.from({ length: scenario.stripeWidth }, () => []);
+  const orderingRng = scenario.accessOrder === 'randomized'
+    ? createRng(scenario.randomSeed ^ 0x5bf03635)
+    : null;
+  const objectTemplate = Array.from({ length: scenario.objectsInFlight }, (_, index) => index);
+  const stripeChunks: ChunkInfo[][] = Array.from({ length: stripes }, () => []);
+  chunkInfos.forEach((chunk) => {
+    if (!stripeChunks[chunk.stripeIndex]) {
+      stripeChunks[chunk.stripeIndex] = [];
+    }
+    stripeChunks[chunk.stripeIndex].push(chunk);
+  });
+
   for (let stripeIndex = 0; stripeIndex < stripes; stripeIndex++) {
-    for (let objectIndex = 0; objectIndex < scenario.objectsInFlight; objectIndex++) {
-      for (let laneIndex = 0; laneIndex < scenario.stripeWidth; laneIndex++) {
-        const chunkIndex = stripeIndex * scenario.stripeWidth + laneIndex;
-        if (chunkIndex >= chunkInfos.length) {
-          continue;
-        }
-        const chunk = chunkInfos[chunkIndex];
+    const chunks = stripeChunks[stripeIndex] ? [...stripeChunks[stripeIndex]] : [];
+    chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+    if (orderingRng) {
+      shuffleInPlace(chunks, orderingRng);
+    }
+    const objectOrder = [...objectTemplate];
+    if (orderingRng) {
+      shuffleInPlace(objectOrder, orderingRng);
+    }
+    for (const objectIndex of objectOrder) {
+      for (const chunk of chunks) {
         chunk.segments.forEach((bytes, segmentIndex) => {
+          const laneIndex = chunk.laneIndex;
           laneJobs[laneIndex].push({
             objectIndex,
-            chunkIndex,
+            chunkIndex: chunk.chunkIndex,
             stripeIndex,
             laneIndex,
             segmentIndex,
@@ -401,7 +479,53 @@ const buildLaneJobs = (
       }
     }
   }
+
   return laneJobs;
+};
+
+const computeLaneCommandCounts = (scenario: EnterpriseScenario, chunkInfos: ChunkInfo[]): number[] => {
+  const counts = Array.from({ length: scenario.stripeWidth }, () => 0);
+  for (const chunk of chunkInfos) {
+    if (chunk.laneIndex >= 0 && chunk.laneIndex < counts.length) {
+      counts[chunk.laneIndex] += chunk.segments.length;
+    }
+  }
+  return counts;
+};
+
+const buildControlMessageSummary = (
+  scenario: EnterpriseScenario,
+  laneCommandCounts: number[],
+  aggregatorMessages?: number[],
+): { byLane: SimulationDerived['controlMessagesByLane']; totalPerObject: number } => {
+  const byLane: SimulationDerived['controlMessagesByLane'] = [];
+  laneCommandCounts.forEach((commands, index) => {
+    const messages = commands * 2;
+    if (messages <= 0) {
+      return;
+    }
+    byLane.push({
+      laneId: `ssd-${index}`,
+      label: `SSD${index}`,
+      role: 'ssd',
+      messages,
+    });
+  });
+  if (aggregatorMessages) {
+    aggregatorMessages.forEach((messages, index) => {
+      if (messages <= 0) {
+        return;
+      }
+      byLane.push({
+        laneId: `aggregator-${index}`,
+        label: `SSD${index} combine`,
+        role: 'aggregator',
+        messages,
+      });
+    });
+  }
+  const totalPerObject = byLane.reduce((sum, entry) => sum + entry.messages, 0);
+  return { byLane, totalPerObject };
 };
 
 const createTimelineSegment = (
@@ -921,6 +1045,8 @@ const simulateSerial = (
 
   const serviceEstimate = scenario.nvmeLatencyUs * 2 + scenario.crcPer4kUs * (chunkBytes / 4096);
   const stripes = Math.max(1, Math.ceil(chunkInfos.length / scenario.stripeWidth));
+  const laneCommandCounts = computeLaneCommandCounts(scenario, chunkInfos);
+  const controlSummary = buildControlMessageSummary(scenario, laneCommandCounts);
 
   for (let objectIndex = 0; objectIndex < scenario.objectsInFlight; objectIndex++) {
     for (const chunk of chunkInfos) {
@@ -1074,6 +1200,8 @@ const simulateSerial = (
   const p50 = computePercentile(objectLatencies, 50);
   const p95 = computePercentile(objectLatencies, 95);
   const p99 = computePercentile(objectLatencies, 99);
+  const hostAggregationUs = 0;
+  const hostCpuPercent = totalLatencyUs > 0 ? (hostAggregationUs / totalLatencyUs) * 100 : 0;
 
   lanes.forEach((lane) => {
     if (lane.totalUs === Math.max(...lanes.map((l) => l.totalUs))) {
@@ -1135,6 +1263,12 @@ const simulateSerial = (
     randomSeed: scenario.randomSeed,
     aggregatorLocation: 'serial',
     commandsPerObject,
+    hostCpuPercent,
+    controlMessagesTotal: controlSummary.totalPerObject * scenario.objectsInFlight,
+    controlMessagesPerObject: controlSummary.totalPerObject,
+    controlMessagesByLane: controlSummary.byLane,
+    accessOrder: scenario.accessOrder,
+    stripeMapSource: scenario.stripeMapSource,
     calibration: buildCalibrationSummary(scenario),
   };
 
@@ -1167,6 +1301,8 @@ const simulateParallelHost = (
   const laneResults = laneJobs.map((jobs, index) => simulateLane(scenario, index, jobs, rng));
   const aggregated = aggregateLaneResults(laneResults);
   const commandsPerObject = chunkInfos.reduce((sum, chunk) => sum + chunk.segments.length, 0);
+  const laneCommandCounts = computeLaneCommandCounts(scenario, chunkInfos);
+  const controlSummary = buildControlMessageSummary(scenario, laneCommandCounts);
 
   const stripeReady: Map<string, number> = new Map();
   const objectReady: number[] = Array.from({ length: scenario.objectsInFlight }, () => 0);
@@ -1265,6 +1401,8 @@ const simulateParallelHost = (
   const p50 = computePercentile(objectLatencies, 50);
   const p95 = computePercentile(objectLatencies, 95);
   const p99 = computePercentile(objectLatencies, 99);
+  const hostAggregationUs = aggregatorPerObjectUs * scenario.objectsInFlight;
+  const hostCpuPercent = totalLatencyUs > 0 ? (hostAggregationUs / totalLatencyUs) * 100 : 0;
 
   const computeCriticalUs = Math.max(...objectReady);
   const aggregationTotalUs = aggregatorPerObjectUs * scenario.objectsInFlight;
@@ -1326,6 +1464,12 @@ const simulateParallelHost = (
     randomSeed: scenario.randomSeed,
     aggregatorLocation: 'host',
     commandsPerObject,
+    hostCpuPercent,
+    controlMessagesTotal: controlSummary.totalPerObject * scenario.objectsInFlight,
+    controlMessagesPerObject: controlSummary.totalPerObject,
+    controlMessagesByLane: controlSummary.byLane,
+    accessOrder: scenario.accessOrder,
+    stripeMapSource: scenario.stripeMapSource,
     calibration: buildCalibrationSummary(scenario),
   };
 
@@ -1361,6 +1505,7 @@ const simulateParallelSsd = (
   const laneResults = laneJobs.map((jobs, index) => simulateLane(scenario, index, jobs, rng));
   const aggregated = aggregateLaneResults(laneResults);
   const commandsPerObject = chunkInfos.reduce((sum, chunk) => sum + chunk.segments.length, 0);
+  const laneCommandCounts = computeLaneCommandCounts(scenario, chunkInfos);
 
   const stripeReady: Map<string, number> = new Map();
   const objectComputeReady: number[] = Array.from({ length: scenario.objectsInFlight }, () => 0);
@@ -1381,11 +1526,16 @@ const simulateParallelSsd = (
   });
 
   const aggregatorLaneCursor: number[] = Array.from({ length: scenario.stripeWidth }, () => 0);
+  const aggregatorMessageCounts: number[] = Array.from({ length: scenario.stripeWidth }, () => 0);
   const stripeOrder: { objectIndex: number; stripeIndex: number }[] = [];
   for (let objectIndex = 0; objectIndex < scenario.objectsInFlight; objectIndex++) {
     for (let stripeIndex = 0; stripeIndex < stripes; stripeIndex++) {
       stripeOrder.push({ objectIndex, stripeIndex });
     }
+  }
+  if (scenario.accessOrder === 'randomized') {
+    const aggregatorRng = createRng(scenario.randomSeed ^ 0x13579bdf);
+    shuffleInPlace(stripeOrder, aggregatorRng);
   }
 
   const objectAggregatedReady: number[] = Array.from({ length: scenario.objectsInFlight }, () => 0);
@@ -1393,9 +1543,21 @@ const simulateParallelSsd = (
   stripeOrder.forEach(({ objectIndex, stripeIndex }) => {
     const readyKey = `${objectIndex}:${stripeIndex}`;
     const stripeReadyTime = stripeReady.get(readyKey) ?? 0;
-    const aggregatorLaneIndex = scenario.aggregatorPolicy === 'roundRobin'
-      ? (objectIndex * stripes + stripeIndex) % scenario.stripeWidth
-      : 0;
+    let aggregatorLaneIndex = 0;
+    if (scenario.aggregatorPolicy === 'roundRobin') {
+      aggregatorLaneIndex = (objectIndex * stripes + stripeIndex) % scenario.stripeWidth;
+    } else if (scenario.aggregatorPolicy === 'leastLoaded') {
+      let bestIndex = 0;
+      let bestValue = aggregatorLaneCursor[0] ?? 0;
+      for (let idx = 1; idx < aggregatorLaneCursor.length; idx++) {
+        const value = aggregatorLaneCursor[idx];
+        if (value < bestValue) {
+          bestIndex = idx;
+          bestValue = value;
+        }
+      }
+      aggregatorLaneIndex = bestIndex;
+    }
     const lane = aggregated.lanes[aggregatorLaneIndex];
     if (!lane) {
       return;
@@ -1414,6 +1576,7 @@ const simulateParallelSsd = (
     }
     lane.totalUs = Math.max(lane.totalUs, endUs);
     aggregatorLaneCursor[aggregatorLaneIndex] = endUs;
+    aggregatorMessageCounts[aggregatorLaneIndex] += 2;
     aggregatorEvents.push({
       timeUs: startUs,
       message: `SSD${aggregatorLaneIndex} aggregates stripe ${stripeIndex + 1} for object ${objectIndex + 1}.`,
@@ -1476,6 +1639,8 @@ const simulateParallelSsd = (
   const p50 = computePercentile(objectLatencies, 50);
   const p95 = computePercentile(objectLatencies, 95);
   const p99 = computePercentile(objectLatencies, 99);
+  const hostCpuPercent = 0;
+  const controlSummary = buildControlMessageSummary(scenario, laneCommandCounts, aggregatorMessageCounts);
 
   const kpis: SimulationKPIs = {
     latencyUs: totalLatencyUs,
@@ -1533,6 +1698,12 @@ const simulateParallelSsd = (
     randomSeed: scenario.randomSeed,
     aggregatorLocation: 'ssd',
     commandsPerObject,
+    hostCpuPercent,
+    controlMessagesTotal: controlSummary.totalPerObject * scenario.objectsInFlight,
+    controlMessagesPerObject: controlSummary.totalPerObject,
+    controlMessagesByLane: controlSummary.byLane,
+    accessOrder: scenario.accessOrder,
+    stripeMapSource: scenario.stripeMapSource,
     calibration: buildCalibrationSummary(scenario),
   };
 
