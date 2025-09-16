@@ -10,13 +10,15 @@ import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/Enha
 import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
 import { EnterpriseSidebar, EnterpriseResults, computeMdtsSegments, EnterpriseMode } from '@/app/components/enterprise/EnterpriseTab';
 import {
-  ENTERPRISE_PHASE3_PRESET,
   EnterpriseScenario,
   simulateEnterprise,
   AggregationLocation,
   EnterpriseSolution,
   CalibrationProfile,
+  cloneEnterpriseScenario as deepCloneEnterpriseScenario,
+  ENTERPRISE_PRESETS,
 } from '@/lib/enterprise/phase3';
+import type { TimelineSegment } from '@/lib/enterprise/phase3';
 import {
   runSweep,
   generateSweepAdvisor,
@@ -24,6 +26,8 @@ import {
   SweepRun,
   SweepAdvisorHint,
   SWEEP_KNOB_DEFINITIONS,
+  computeLatencyDistribution,
+  computeLaneBoxplots,
 } from '@/lib/enterprise/analytics';
 import {
   parseCalibrationInput,
@@ -70,8 +74,12 @@ export default function CRCWorkflowVisualizer() {
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'throughput' | 'cpu'>('latency');
   const [currentStage, setCurrentStage] = useState<string>('Ready');
   const [animationProgress, setAnimationProgress] = useState(100); 
-  const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE3_PRESET);
-  const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE3_PRESET);
+  const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<EnterpriseScenario>(() =>
+    deepCloneEnterpriseScenario(ENTERPRISE_PRESETS[0].scenario),
+  );
+  const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<EnterpriseScenario>(() =>
+    deepCloneEnterpriseScenario(ENTERPRISE_PRESETS[0].scenario),
+  );
   const [enterpriseMode, setEnterpriseMode] = useState<EnterpriseMode>('single');
   const [enterpriseShowCritical, setEnterpriseShowCritical] = useState(false);
   const [enterpriseEventsOpen, setEnterpriseEventsOpen] = useState(false);
@@ -85,6 +93,7 @@ export default function CRCWorkflowVisualizer() {
   const [calibrationProfiles, setCalibrationProfiles] = useState<CalibrationProfile[]>([]);
   const [calibrationWarnings, setCalibrationWarnings] = useState<string[]>([]);
   const [calibrationImportError, setCalibrationImportError] = useState<string | null>(null);
+  const [enterpriseActivePresetId, setEnterpriseActivePresetId] = useState<string>('baseline');
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -95,23 +104,7 @@ export default function CRCWorkflowVisualizer() {
   const enterpriseProgressTimeoutRef = useRef<number | null>(null);
   const enterpriseCommitTimeoutRef = useRef<number | null>(null);
 
-  const cloneEnterpriseScenario = useCallback((scenario: EnterpriseScenario): EnterpriseScenario => ({
-    ...scenario,
-    hostCoefficients: { ...scenario.hostCoefficients },
-    ssdCoefficients: { ...scenario.ssdCoefficients },
-    calibration: scenario.calibration
-      ? {
-          ...scenario.calibration,
-          hostCoefficients: scenario.calibration.hostCoefficients
-            ? { ...scenario.calibration.hostCoefficients }
-            : undefined,
-          ssdCoefficients: scenario.calibration.ssdCoefficients
-            ? { ...scenario.calibration.ssdCoefficients }
-            : undefined,
-          warnings: scenario.calibration.warnings ? [...scenario.calibration.warnings] : undefined,
-        }
-      : undefined,
-  }), []);
+  const cloneScenario = useCallback((scenario: EnterpriseScenario): EnterpriseScenario => deepCloneEnterpriseScenario(scenario), []);
 
   // Apply dark/light mode with smooth transitions
   useEffect(() => {
@@ -157,16 +150,56 @@ export default function CRCWorkflowVisualizer() {
     }
     return (['s1', 's2', 's3'] as EnterpriseSolution[]).map((solution) =>
       simulateEnterprise({
-        ...cloneEnterpriseScenario(enterpriseCommittedScenario),
+        ...cloneScenario(enterpriseCommittedScenario),
         solution,
       }),
     );
-  }, [cloneEnterpriseScenario, enterpriseCommittedScenario, enterpriseMode]);
+  }, [cloneScenario, enterpriseCommittedScenario, enterpriseMode]);
   const enterpriseMdtsSegments = useMemo(
     () => computeMdtsSegments(enterpriseDraftScenario),
     [enterpriseDraftScenario]
   );
   const enterpriseMdtsClamp = enterpriseDraftScenario.chunkSizeKB * 1024 > enterpriseDraftScenario.mdtsBytes;
+  const enterpriseValidation = useMemo(() => {
+    const warnings: string[] = [];
+    const errors: string[] = [];
+    const scenario = enterpriseDraftScenario;
+    const mdtsKiB = scenario.mdtsBytes / 1024;
+    if (enterpriseMdtsClamp) {
+      warnings.push(
+        `Chunk size ${scenario.chunkSizeKB.toFixed(0)} KiB exceeds MDTS ${mdtsKiB.toFixed(0)} KiB – split into ${enterpriseMdtsSegments} commands per chunk.`,
+      );
+    }
+    const fullStripeMiB = (scenario.chunkSizeKB * scenario.stripeWidth) / 1024;
+    if (scenario.fileSizeMB < fullStripeMiB) {
+      warnings.push(
+        `File size ${scenario.fileSizeMB.toFixed(1)} MiB is smaller than a full stripe (${fullStripeMiB.toFixed(1)} MiB); tail chunk will be partial.`,
+      );
+    }
+    if (!scenario.calibration?.profileId && scenario.stripeWidth >= 24) {
+      warnings.push('Stripe width ≥ 24 without calibration – p95/p99 projections may drift.');
+    }
+    if (!scenario.calibration?.profileId && scenario.objectsInFlight > 6) {
+      warnings.push('High concurrency without calibration – consider importing exerciser logs for accuracy.');
+    }
+    const capacity = scenario.queueDepth * scenario.stripeWidth;
+    if (scenario.objectsInFlight > capacity) {
+      errors.push(
+        `Objects in flight ${scenario.objectsInFlight} exceed queue capacity ${capacity} (queueDepth × stripeWidth).`,
+      );
+    }
+    if (scenario.objectsInFlight > scenario.stripeWidth && scenario.queueDepth <= 2) {
+      warnings.push('Low queue depth with many objects – SSD lanes may starve; increase queue depth.');
+    }
+    const readNlb = scenario.calibration?.readNlb ?? 1;
+    const perCommandKiB = readNlb * 4;
+    if (perCommandKiB > mdtsKiB) {
+      errors.push(
+        `Calibration read+NLB ${readNlb} implies ${perCommandKiB.toFixed(0)} KiB commands beyond MDTS ${mdtsKiB.toFixed(0)} KiB.`,
+      );
+    }
+    return { warnings, errors };
+  }, [enterpriseDraftScenario, enterpriseMdtsClamp, enterpriseMdtsSegments]);
 
   useEffect(() => {
     return () => {
@@ -184,6 +217,10 @@ export default function CRCWorkflowVisualizer() {
 
   const runEnterpriseSimulation = useCallback(() => {
     setEnterpriseImportError(null);
+    if (enterpriseValidation.errors.length > 0) {
+      setEnterpriseImportError(enterpriseValidation.errors[0]);
+      return;
+    }
     if (enterpriseProgressIntervalRef.current !== null) {
       window.clearInterval(enterpriseProgressIntervalRef.current);
     }
@@ -206,7 +243,7 @@ export default function CRCWorkflowVisualizer() {
       });
     }, 85);
 
-    const nextScenario = cloneEnterpriseScenario(enterpriseDraftScenario);
+    const nextScenario = cloneScenario(enterpriseDraftScenario);
 
     enterpriseCommitTimeoutRef.current = window.setTimeout(() => {
       setEnterpriseCommittedScenario(nextScenario);
@@ -222,10 +259,14 @@ export default function CRCWorkflowVisualizer() {
       }, 600);
       enterpriseCommitTimeoutRef.current = null;
     }, 180);
-  }, [cloneEnterpriseScenario, enterpriseDraftScenario]);
+  }, [cloneScenario, enterpriseDraftScenario, enterpriseValidation.errors]);
 
   const runEnterpriseSweep = useCallback(() => {
     setEnterpriseImportError(null);
+    if (enterpriseValidation.errors.length > 0) {
+      setEnterpriseImportError(enterpriseValidation.errors[0]);
+      return;
+    }
     if (enterpriseProgressIntervalRef.current !== null) {
       window.clearInterval(enterpriseProgressIntervalRef.current);
     }
@@ -248,7 +289,7 @@ export default function CRCWorkflowVisualizer() {
       });
     }, 95);
 
-    const nextScenario = cloneEnterpriseScenario(enterpriseDraftScenario);
+    const nextScenario = cloneScenario(enterpriseDraftScenario);
 
     enterpriseCommitTimeoutRef.current = window.setTimeout(() => {
       const sweep = runSweep(nextScenario, enterpriseSweepConfig);
@@ -267,19 +308,24 @@ export default function CRCWorkflowVisualizer() {
       }, 600);
       enterpriseCommitTimeoutRef.current = null;
     }, 220);
-  }, [cloneEnterpriseScenario, enterpriseDraftScenario, enterpriseSweepConfig]);
+  }, [cloneScenario, enterpriseDraftScenario, enterpriseSweepConfig, enterpriseValidation.errors]);
 
-  const loadEnterprisePreset = useCallback(() => {
-    setEnterpriseImportError(null);
-    const presetDraft = cloneEnterpriseScenario(ENTERPRISE_PHASE3_PRESET);
-    setEnterpriseDraftScenario(presetDraft);
-    setEnterpriseCommittedScenario(cloneEnterpriseScenario(ENTERPRISE_PHASE3_PRESET));
-    setCalibrationWarnings(presetDraft.calibration?.warnings ?? []);
-    setCalibrationImportError(null);
-    setEnterpriseSweepRun(null);
-    setEnterpriseSweepAdvisorHints([]);
-    setEnterpriseSweepConfig(ENTERPRISE_DEFAULT_SWEEP);
-  }, [cloneEnterpriseScenario]);
+  const loadEnterprisePreset = useCallback(
+    (presetId: string) => {
+      setEnterpriseImportError(null);
+      const preset = ENTERPRISE_PRESETS.find((item) => item.id === presetId) ?? ENTERPRISE_PRESETS[0];
+      const presetDraft = cloneScenario(preset.scenario);
+      setEnterpriseDraftScenario(presetDraft);
+      setEnterpriseCommittedScenario(cloneScenario(preset.scenario));
+      setCalibrationWarnings(presetDraft.calibration?.warnings ?? []);
+      setCalibrationImportError(null);
+      setEnterpriseSweepRun(null);
+      setEnterpriseSweepAdvisorHints([]);
+      setEnterpriseSweepConfig(ENTERPRISE_DEFAULT_SWEEP);
+      setEnterpriseActivePresetId(preset.id);
+    },
+    [cloneScenario],
+  );
 
   const updateEnterpriseScenario = useCallback((update: Partial<EnterpriseScenario>) => {
     setEnterpriseImportError(null);
@@ -325,6 +371,7 @@ export default function CRCWorkflowVisualizer() {
     }));
     setEnterpriseSweepRun(null);
     setEnterpriseSweepAdvisorHints([]);
+    setEnterpriseActivePresetId('custom');
   }, []);
 
   const updateEnterpriseHostCoefficient = useCallback((key: 'c0' | 'c1' | 'c2', value: number) => {
@@ -338,6 +385,7 @@ export default function CRCWorkflowVisualizer() {
     }));
     setEnterpriseSweepRun(null);
     setEnterpriseSweepAdvisorHints([]);
+    setEnterpriseActivePresetId('custom');
   }, []);
 
   const updateEnterpriseSsdCoefficient = useCallback((key: 'd0' | 'd1', value: number) => {
@@ -351,6 +399,7 @@ export default function CRCWorkflowVisualizer() {
     }));
     setEnterpriseSweepRun(null);
     setEnterpriseSweepAdvisorHints([]);
+    setEnterpriseActivePresetId('custom');
   }, []);
 
   const updateEnterpriseSweepConfig = useCallback((update: Partial<SweepConfig>) => {
@@ -384,8 +433,196 @@ export default function CRCWorkflowVisualizer() {
     setEnterpriseSweepAdvisorEnabled(value);
   }, []);
 
+  const enterprisePresetOptions = useMemo(
+    () =>
+      ENTERPRISE_PRESETS.map((preset) => ({
+        id: preset.id,
+        label: preset.label,
+        summary: preset.summary,
+        description: preset.description,
+      })),
+    [],
+  );
+
+  const matchPresetSource = useMemo(() => {
+    const calibration = enterpriseDraftScenario.calibration;
+    if (calibration) {
+      const profile = calibration.profileId
+        ? calibrationProfiles.find((item) => item.id === calibration.profileId)
+        : undefined;
+      return { calibration, profile } as const;
+    }
+    if (calibrationProfiles.length > 0) {
+      return { calibration: undefined, profile: calibrationProfiles[0] } as const;
+    }
+    return null;
+  }, [enterpriseDraftScenario.calibration, calibrationProfiles]);
+
+  const matchPresetLabel = useMemo(() => {
+    if (!matchPresetSource) {
+      return 'Match Exerciser (import calibration)';
+    }
+    const name = matchPresetSource.calibration?.label ?? matchPresetSource.profile?.label;
+    const pieces: string[] = [];
+    const queueDepth = matchPresetSource.calibration?.queueDepth ?? matchPresetSource.profile?.queueDepth;
+    if (typeof queueDepth === 'number') {
+      pieces.push(`QD ${queueDepth}`);
+    }
+    const threads = matchPresetSource.calibration?.threads ?? matchPresetSource.profile?.threads;
+    if (typeof threads === 'number') {
+      pieces.push(`${threads} threads`);
+    }
+    const nlb = matchPresetSource.calibration?.readNlb ?? matchPresetSource.profile?.readNlb;
+    if (typeof nlb === 'number') {
+      pieces.push(`NLB ${nlb}`);
+    }
+    const suffix = pieces.length ? ` · ${pieces.join(' · ')}` : '';
+    return name ? `Match Exerciser: ${name}${suffix}` : `Match Exerciser${suffix}`;
+  }, [matchPresetSource]);
+
+  const matchPresetDescription = useMemo(() => {
+    if (!matchPresetSource) {
+      return 'Import or apply a calibration profile to unlock the exerciser-matched preset.';
+    }
+    const device = matchPresetSource.calibration?.device ?? matchPresetSource.profile?.device;
+    const firmware = matchPresetSource.calibration?.firmware ?? matchPresetSource.profile?.firmware;
+    const origin = matchPresetSource.profile?.source ?? matchPresetSource.calibration?.source;
+    const context: string[] = [];
+    if (device) {
+      context.push(device);
+    }
+    if (firmware) {
+      context.push(firmware);
+    }
+    if (origin) {
+      context.push(origin === 'log' ? 'log import' : origin);
+    }
+    const contextLabel = context.length ? ` (${context.join(' · ')})` : '';
+    return `Rehydrates calibrated μ/σ, queue depth, and NVMe timings${contextLabel}.`;
+  }, [matchPresetSource]);
+
+  const matchPresetDisabled = !matchPresetSource;
+
+  const loadMatchPreset = useCallback(() => {
+    if (!matchPresetSource) {
+      setEnterpriseImportError('Import a calibration profile before using the Match Exerciser preset.');
+      return;
+    }
+    setEnterpriseImportError(null);
+    const base = cloneScenario(ENTERPRISE_PRESETS[0].scenario);
+    const profile = matchPresetSource.profile;
+    const calibration = matchPresetSource.calibration;
+    const warnings = calibration?.warnings && calibration.warnings.length > 0
+      ? [...calibration.warnings]
+      : profile?.warnings
+        ? [...profile.warnings]
+        : [];
+    const useDefaults = calibration?.useProfileDefaults ?? true;
+
+    const next = base;
+    let scenarioCalibration = calibration ? { ...calibration, warnings: [...warnings] } : undefined;
+
+    if (profile) {
+      scenarioCalibration = profileToScenarioCalibration(profile, {
+        warnings,
+        useProfileDefaults: useDefaults,
+      });
+      if (useDefaults) {
+        if (typeof profile.muPer4kUs === 'number') {
+          next.crcPer4kUs = profile.muPer4kUs;
+        }
+        if (typeof profile.sigmaPer4kUs === 'number') {
+          next.crcSigmaPer4kUs = profile.sigmaPer4kUs;
+        }
+        if (typeof profile.nvmeLatencyUs === 'number') {
+          next.nvmeLatencyUs = profile.nvmeLatencyUs;
+        }
+        if (typeof profile.queueDepth === 'number') {
+          next.queueDepth = profile.queueDepth;
+        }
+        if (typeof profile.threads === 'number') {
+          next.threads = profile.threads;
+        }
+        if (typeof profile.mdtsBytes === 'number') {
+          next.mdtsBytes = profile.mdtsBytes;
+        }
+        if (profile.hostCoefficients) {
+          next.hostCoefficients = {
+            ...next.hostCoefficients,
+            ...profile.hostCoefficients,
+          };
+        }
+        if (profile.ssdCoefficients) {
+          next.ssdCoefficients = {
+            ...next.ssdCoefficients,
+            ...profile.ssdCoefficients,
+          };
+        }
+      }
+    } else if (calibration) {
+      scenarioCalibration = {
+        ...calibration,
+        warnings: [...warnings],
+      };
+      if (useDefaults) {
+        if (typeof calibration.muPer4kUs === 'number') {
+          next.crcPer4kUs = calibration.muPer4kUs;
+        }
+        if (typeof calibration.sigmaPer4kUs === 'number') {
+          next.crcSigmaPer4kUs = calibration.sigmaPer4kUs;
+        }
+        if (typeof calibration.nvmeLatencyUs === 'number') {
+          next.nvmeLatencyUs = calibration.nvmeLatencyUs;
+        }
+        if (typeof calibration.queueDepth === 'number') {
+          next.queueDepth = calibration.queueDepth;
+        }
+        if (typeof calibration.threads === 'number') {
+          next.threads = calibration.threads;
+        }
+        if (typeof calibration.mdtsBytes === 'number') {
+          next.mdtsBytes = calibration.mdtsBytes;
+        }
+        if (calibration.hostCoefficients) {
+          next.hostCoefficients = {
+            ...next.hostCoefficients,
+            ...calibration.hostCoefficients,
+          };
+        }
+        if (calibration.ssdCoefficients) {
+          next.ssdCoefficients = {
+            ...next.ssdCoefficients,
+            ...calibration.ssdCoefficients,
+          };
+        }
+      }
+    }
+
+    const queueDepth = calibration?.queueDepth ?? profile?.queueDepth;
+    if (!useDefaults && typeof queueDepth === 'number') {
+      next.queueDepth = queueDepth;
+    }
+    const threads = calibration?.threads ?? profile?.threads;
+    if (!useDefaults && typeof threads === 'number') {
+      next.threads = threads;
+    }
+
+    next.calibration = scenarioCalibration;
+
+    const nextDraft = cloneScenario(next);
+    const nextCommitted = cloneScenario(nextDraft);
+    setEnterpriseDraftScenario(nextDraft);
+    setEnterpriseCommittedScenario(nextCommitted);
+    setCalibrationWarnings(nextCommitted.calibration?.warnings ?? []);
+    setCalibrationImportError(null);
+    setEnterpriseSweepRun(null);
+    setEnterpriseSweepAdvisorHints([]);
+    setEnterpriseSweepConfig(ENTERPRISE_DEFAULT_SWEEP);
+    setEnterpriseActivePresetId('match');
+  }, [cloneScenario, matchPresetSource]);
+
   const exportEnterpriseScenario = useCallback(() => {
-    const scenarioToExport = cloneEnterpriseScenario(enterpriseResult.scenario);
+    const scenarioToExport = cloneScenario(enterpriseResult.scenario);
     const blob = new Blob([JSON.stringify(scenarioToExport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -398,10 +635,10 @@ export default function CRCWorkflowVisualizer() {
       URL.revokeObjectURL(url);
       link.remove();
     }, 0);
-  }, [cloneEnterpriseScenario, enterpriseResult.scenario]);
+  }, [cloneScenario, enterpriseResult.scenario]);
 
   const exportEnterpriseResults = useCallback(() => {
-    const { scenario, kpis, lanes, derived, aggregationTree, events } = enterpriseResult;
+    const { scenario, kpis, lanes, derived, aggregationTree, events, heatmap } = enterpriseResult;
     const escapeCsv = (value: string | number | null | undefined): string => {
       const text =
         value === null || value === undefined
@@ -495,6 +732,38 @@ export default function CRCWorkflowVisualizer() {
         [event.timeUs.toFixed(3), event.type, event.message].map(escapeCsv).join(','),
       );
     });
+
+    const latencyDistribution = computeLatencyDistribution(derived.objectLatenciesUs, 24);
+    if (latencyDistribution.bins.length > 0) {
+      lines.push('');
+      lines.push('Latency Distribution');
+      lines.push(['Mean_us', latencyDistribution.mean.toFixed(3)].map(escapeCsv).join(','));
+      lines.push(['StdDev_us', latencyDistribution.stdDev.toFixed(3)].map(escapeCsv).join(','));
+      lines.push(['Bin_Start_us', 'Bin_End_us', 'Density', 'Cumulative'].map(escapeCsv).join(','));
+      latencyDistribution.bins.forEach((bin) => {
+        lines.push(
+          [
+            bin.start.toFixed(3),
+            bin.end.toFixed(3),
+            bin.density.toFixed(6),
+            bin.cumulative.toFixed(6),
+          ].map(escapeCsv).join(','),
+        );
+      });
+    }
+
+    if (heatmap.length > 0) {
+      lines.push('');
+      lines.push('Queue Heatmap');
+      lines.push(['Lane', 'Role', 'Time_us', 'Occupancy'].map(escapeCsv).join(','));
+      heatmap.forEach((lane) => {
+        lane.samples.forEach((sample) => {
+          lines.push(
+            [lane.label, lane.role, sample.timeUs.toFixed(3), sample.occupancy.toString()].map(escapeCsv).join(','),
+          );
+        });
+      });
+    }
 
     const csvContent = lines.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -610,6 +879,93 @@ export default function CRCWorkflowVisualizer() {
     }, 0);
   }, [enterpriseSweepRun, enterpriseSweepAdvisorHints]);
 
+  const exportEnterpriseSnapshot = useCallback(() => {
+    const summariseSegments = (segments: TimelineSegment[], maxSegments = 600) => {
+      if (segments.length <= maxSegments) {
+        return segments.map((segment) => ({
+          startUs: segment.startUs,
+          endUs: segment.endUs,
+          label: segment.label,
+          kind: segment.kind,
+        }));
+      }
+      const stride = Math.max(1, Math.floor(segments.length / maxSegments));
+      const result: Array<{ startUs: number; endUs: number; label: string; kind: string; sampleCount: number }> = [];
+      for (let index = 0; index < segments.length; index += stride) {
+        const head = segments[index];
+        const tail = segments[Math.min(index + stride - 1, segments.length - 1)];
+        result.push({
+          startUs: head.startUs,
+          endUs: tail.endUs,
+          label: head.label,
+          kind: head.kind,
+          sampleCount: Math.min(stride, segments.length - index),
+        });
+      }
+      return result;
+    };
+
+    const scenario = cloneScenario(enterpriseResult.scenario);
+    const latencyDistribution = computeLatencyDistribution(enterpriseResult.derived.objectLatenciesUs, 24);
+    const laneBoxplots = computeLaneBoxplots(enterpriseResult.lanes);
+    const timeline = enterpriseResult.lanes.map((lane) => ({
+      id: lane.id,
+      label: lane.label,
+      role: lane.role,
+      totalUs: lane.totalUs,
+      isCritical: lane.isCritical,
+      segmentCount: lane.segments.length,
+      segments: summariseSegments(lane.segments),
+    }));
+
+    const snapshot: Record<string, unknown> = {
+      version: 'phase6',
+      exportedAt: new Date().toISOString(),
+      mode: enterpriseMode,
+      scenario,
+      kpis: enterpriseResult.kpis,
+      derived: enterpriseResult.derived,
+      aggregationTree: enterpriseResult.aggregationTree,
+      charts: {
+        timeline,
+        heatmap: enterpriseResult.heatmap,
+        latencyDistribution,
+        laneBoxplots,
+      },
+      events: enterpriseResult.events.slice(-200),
+      runbook: enterpriseResult.runbook,
+    };
+
+    if (enterpriseMode === 'compare' && enterpriseCompareResults) {
+      snapshot.compare = enterpriseCompareResults.map((result) => ({
+        solution: result.scenario.solution,
+        kpis: result.kpis,
+        derived: result.derived,
+      }));
+    }
+
+    if (enterpriseMode === 'sweep' && enterpriseSweepRun) {
+      snapshot.sweep = {
+        config: enterpriseSweepRun.config,
+        points: enterpriseSweepRun.points,
+        solutions: enterpriseSweepRun.solutions,
+        advisor: enterpriseSweepAdvisorHints,
+      };
+    }
+
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `crc_enterprise_snapshot_${enterpriseMode}_${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 0);
+  }, [cloneScenario, enterpriseMode, enterpriseResult, enterpriseCompareResults, enterpriseSweepRun, enterpriseSweepAdvisorHints]);
+
   const importEnterpriseScenarioClick = useCallback(() => {
     setEnterpriseImportError(null);
     if (enterpriseFileInputRef.current) {
@@ -630,13 +986,14 @@ export default function CRCWorkflowVisualizer() {
         const text = typeof reader.result === 'string' ? reader.result : '';
         const parsed = JSON.parse(text) as EnterpriseScenario;
         const normalised = simulateEnterprise(parsed).scenario;
-        setEnterpriseDraftScenario(cloneEnterpriseScenario(normalised));
-        setEnterpriseCommittedScenario(cloneEnterpriseScenario(normalised));
+        setEnterpriseDraftScenario(cloneScenario(normalised));
+        setEnterpriseCommittedScenario(cloneScenario(normalised));
         setEnterpriseImportError(null);
         setCalibrationWarnings(normalised.calibration?.warnings ?? []);
         setCalibrationImportError(null);
         setEnterpriseSweepRun(null);
         setEnterpriseSweepAdvisorHints([]);
+        setEnterpriseActivePresetId('imported');
         if (normalised.calibration?.profileId) {
           const profile = scenarioToCalibrationProfile(normalised, {
             label: normalised.calibration.label ?? 'Imported profile',
@@ -660,7 +1017,7 @@ export default function CRCWorkflowVisualizer() {
       setEnterpriseImportError('Unable to read scenario file.');
     };
     reader.readAsText(file);
-  }, [cloneEnterpriseScenario]);
+  }, [cloneScenario]);
 
   const applyCalibrationProfile = useCallback(
     (profile: CalibrationProfile, warnings: string[]) => {
@@ -786,7 +1143,7 @@ export default function CRCWorkflowVisualizer() {
     if (!label) {
       return;
     }
-    const scenarioSnapshot = cloneEnterpriseScenario(enterpriseDraftScenario);
+    const scenarioSnapshot = cloneScenario(enterpriseDraftScenario);
     const baseCalibration = scenarioSnapshot.calibration ?? {
       profileId: null,
       useProfileDefaults: true,
@@ -799,7 +1156,7 @@ export default function CRCWorkflowVisualizer() {
     };
     const profile = scenarioToCalibrationProfile(scenarioSnapshot, { label, source: 'manual' });
     applyCalibrationProfile(profile, enterpriseDraftScenario.calibration?.warnings ?? []);
-  }, [applyCalibrationProfile, cloneEnterpriseScenario, enterpriseDraftScenario]);
+  }, [applyCalibrationProfile, cloneScenario, enterpriseDraftScenario]);
 
   const clearCalibrationProfile = useCallback(() => {
     updateEnterpriseScenario({ calibration: undefined });
@@ -1312,7 +1669,14 @@ export default function CRCWorkflowVisualizer() {
               onUpdateScenario={updateEnterpriseScenario}
               onUpdateHostCoefficient={updateEnterpriseHostCoefficient}
               onUpdateSsdCoefficient={updateEnterpriseSsdCoefficient}
-              onPreset={loadEnterprisePreset}
+              presets={enterprisePresetOptions}
+              activePresetId={enterpriseActivePresetId}
+              onPresetSelect={loadEnterprisePreset}
+              onMatchPreset={loadMatchPreset}
+              matchPresetLabel={matchPresetLabel}
+              matchPresetDescription={matchPresetDescription}
+              matchPresetDisabled={matchPresetDisabled}
+              matchPresetActive={enterpriseActivePresetId === 'match'}
               mode={enterpriseMode}
               onModeChange={setEnterpriseMode}
               sweepConfig={enterpriseSweepConfig}
@@ -1330,6 +1694,8 @@ export default function CRCWorkflowVisualizer() {
               onCalibrationToggleDefaults={toggleCalibrationDefaults}
               calibrationWarnings={calibrationWarnings}
               calibrationImportError={calibrationImportError}
+              scenarioWarnings={enterpriseValidation.warnings}
+              scenarioErrors={enterpriseValidation.errors}
             />
           </motion.div>
         ) : state.viewMode !== 'ai' ? (
@@ -1627,7 +1993,8 @@ export default function CRCWorkflowVisualizer() {
                     onRunSweep={runEnterpriseSweep}
                     onExportScenario={exportEnterpriseScenario}
                     onExportResults={exportEnterpriseResults}
-                    onExportSweep={exportEnterpriseSweep}
+                    onExportSnapshot={exportEnterpriseSnapshot}
+                    onExportSweep={enterpriseMode === 'sweep' ? exportEnterpriseSweep : undefined}
                     onImportClick={importEnterpriseScenarioClick}
                     importError={enterpriseImportError}
                     fileInputRef={enterpriseFileInputRef}
@@ -1635,6 +2002,8 @@ export default function CRCWorkflowVisualizer() {
                     sweepRun={enterpriseSweepRun}
                     sweepAdvisorHints={enterpriseSweepAdvisorHints}
                     sweepAdvisorEnabled={enterpriseSweepAdvisorEnabled}
+                    validationWarnings={enterpriseValidation.warnings}
+                    validationErrors={enterpriseValidation.errors}
                   />
                 </motion.div>
               ) : viewMode === 'single' && (
