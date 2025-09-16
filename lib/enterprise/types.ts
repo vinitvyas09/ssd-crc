@@ -7,7 +7,9 @@ export type TimelineSegmentKind =
   | 'wait';
 
 export type EnterpriseSolution = 's1' | 's2' | 's3';
-export type AggregatorPolicy = 'pinned' | 'roundRobin';
+export type AggregatorPolicy = 'pinned' | 'roundRobin' | 'leastLoaded';
+export type StripeMapSource = 'uniform' | 'imported';
+export type AccessOrder = 'stripe' | 'randomized';
 export type ServiceDistribution = 'deterministic' | 'lognormal' | 'gamma';
 export type RetryPolicy = 'fixed' | 'exponential';
 
@@ -73,6 +75,9 @@ export interface EnterpriseScenario {
   chunkSizeKB: number;
   queueDepth: number;
   threads: number;
+  stripeMapSource: StripeMapSource;
+  stripeAssignments?: number[];
+  accessOrder: AccessOrder;
   hostCoefficients: HostCoefficients;
   ssdCoefficients: SsdCoefficients;
   nvmeLatencyUs: number;
@@ -87,6 +92,7 @@ export interface EnterpriseScenario {
   retryMaxAttempts: number;
   orchestrationOverheadUs: number;
   mdtsBytes: number;
+  readNlb: number;
   solution: EnterpriseSolution;
   aggregatorPolicy: AggregatorPolicy;
   randomSeed: number;
@@ -235,6 +241,17 @@ export interface SimulationDerived {
   steadyStateUs?: number;
   aggregatorLocation: AggregationLocation;
   commandsPerObject: number;
+  hostCpuPercent: number;
+  controlMessagesTotal: number;
+  controlMessagesPerObject: number;
+  controlMessagesByLane: Array<{
+    laneId: string;
+    label: string;
+    role: 'host' | 'ssd' | 'aggregator';
+    messages: number;
+  }>;
+  accessOrder?: AccessOrder;
+  stripeMapSource?: StripeMapSource;
   calibration?: SimulationCalibrationSummary;
 }
 
