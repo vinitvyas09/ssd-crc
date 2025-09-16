@@ -2,9 +2,13 @@
 
 import React from 'react';
 import {
-  Phase1Scenario,
+  EnterpriseScenario,
   SimulationResult,
-} from '@/lib/enterprise/phase1';
+  AggregationTree,
+  EnterpriseSolution,
+  AggregatorPolicy,
+  AggregationLocation,
+} from '@/lib/enterprise/phase2';
 import { cn } from '@/lib/utils';
 
 interface NumberSliderProps {
@@ -136,12 +140,42 @@ const formatObjectsPerSecond = (value: number): string => {
   return `${value.toFixed(2)} objs/s`;
 };
 
+const SOLUTION_META: Record<EnterpriseSolution, { label: string; summary: string; description: string }> = {
+  s1: {
+    label: 'S1 · Serial (Seeded)',
+    summary: 'Serial pipeline seeded across SSDs',
+    description: 'Sequential CRC chain with host validation only.',
+  },
+  s2: {
+    label: 'S2 · Parallel + Host Aggregation',
+    summary: 'Parallel CRC with host-side combine',
+    description: 'Host aggregates partial CRCs after fan-out completes.',
+  },
+  s3: {
+    label: 'S3 · Parallel + SSD Aggregation',
+    summary: 'Parallel CRC with device-side combine',
+    description: 'SSD performs aggregation before host validation.',
+  },
+};
+
+const AGGREGATOR_POLICY_META: Record<AggregatorPolicy, string> = {
+  pinned: 'Pinned SSD',
+  roundRobin: 'Round-robin',
+};
+
+const AGGREGATION_LOCATION_LABEL: Record<AggregationLocation, string> = {
+  serial: 'Serial pipeline',
+  host: 'Host aggregation',
+  ssd: 'SSD aggregation',
+};
+
 export interface EnterpriseSidebarProps {
-  draftScenario: Phase1Scenario;
+  draftScenario: EnterpriseScenario;
   mdtsSegments: number;
   mdtsClamp: boolean;
-  onUpdateScenario: (update: Partial<Phase1Scenario>) => void;
+  onUpdateScenario: (update: Partial<EnterpriseScenario>) => void;
   onUpdateHostCoefficient: (key: 'c0' | 'c1' | 'c2', value: number) => void;
+  onUpdateSsdCoefficient: (key: 'd0' | 'd1', value: number) => void;
   onPreset: () => void;
 }
 
@@ -151,6 +185,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   mdtsClamp,
   onUpdateScenario,
   onUpdateHostCoefficient,
+  onUpdateSsdCoefficient,
   onPreset,
 }) => {
   return (
@@ -173,7 +208,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
           max={8}
           step={1}
           onChange={(value) => onUpdateScenario({ objectsInFlight: value })}
-          helper="Phase 1 models a single object; additional fan-in coming in Phase 3."
+          helper="Deterministic slice keeps one object; multi-object fan-in lands with Phase 3."
           disabled
         />
       </Section>
@@ -224,7 +259,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
             step={1}
             onChange={(value) => onUpdateScenario({ queueDepth: value })}
             disabled
-            helper="Phase 1 keeps a single outstanding command per SSD; queueing unlocks with stochastic mode."
+            helper="Phase 2 keeps a single outstanding command per SSD; queueing unlocks with stochastic mode."
           />
           <div className="flex items-center justify-between">
             <span className="font-medium text-zinc-300">Threads</span>
@@ -236,35 +271,35 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
       </Section>
 
       <Section title="Compute & Aggregation">
-        <div className="space-y-3 rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 text-xs">
+        <div className="space-y-4 rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 text-xs">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Solution</div>
             <div className="mt-2 grid gap-2">
-              <button
-                type="button"
-                className="flex items-center justify-between rounded-lg border border-sky-500/60 bg-sky-500/10 px-3 py-2 text-left text-xs text-sky-200"
-              >
-                <span>S2 · Parallel CRC + Host Aggregation</span>
-                <span className="text-[10px] uppercase tracking-wide">Active</span>
-              </button>
-              <button
-                type="button"
-                className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-left text-xs text-zinc-500"
-                title="Solutions 1 and 3 unlock in Phase 2"
-                disabled
-              >
-                <span>S1 · Serial with Seeding</span>
-                <span className="text-[10px] uppercase tracking-wide">Locked</span>
-              </button>
-              <button
-                type="button"
-                className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-left text-xs text-zinc-500"
-                title="Solutions 1 and 3 unlock in Phase 2"
-                disabled
-              >
-                <span>S3 · Parallel + SSD Aggregation</span>
-                <span className="text-[10px] uppercase tracking-wide">Locked</span>
-              </button>
+              {(['s1', 's2', 's3'] as EnterpriseSolution[]).map((solution) => {
+                const meta = SOLUTION_META[solution];
+                const active = draftScenario.solution === solution;
+                return (
+                  <button
+                    key={solution}
+                    type="button"
+                    onClick={() => onUpdateScenario({ solution })}
+                    className={cn(
+                      'flex items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                      active
+                        ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
+                        : 'border-zinc-800 text-zinc-400 hover:border-sky-500/40 hover:text-sky-200',
+                    )}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{meta.label}</span>
+                      <span className="text-[10px] text-zinc-500">{meta.summary}</span>
+                    </div>
+                    {active && (
+                      <span className="text-[10px] uppercase tracking-wide text-sky-200">Active</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -281,6 +316,8 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               step={1}
               unit="µs"
               onChange={(value) => onUpdateHostCoefficient('c0', value)}
+              helper="Used by S2 when aggregation stays on the host."
+              highlight={draftScenario.solution === 's2'}
             />
             <NumberSlider
               id="c1"
@@ -291,6 +328,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               step={0.1}
               unit="µs"
               onChange={(value) => onUpdateHostCoefficient('c1', value)}
+              highlight={draftScenario.solution === 's2'}
             />
             <NumberSlider
               id="c2"
@@ -301,7 +339,72 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               step={0.5}
               unit="µs"
               onChange={(value) => onUpdateHostCoefficient('c2', value)}
+              highlight={draftScenario.solution === 's2'}
             />
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              SSD Aggregation Model (Agg_ssd)
+            </div>
+            <NumberSlider
+              id="d0"
+              label="d0 (base)"
+              value={draftScenario.ssdCoefficients.d0}
+              min={0}
+              max={100}
+              step={0.5}
+              unit="µs"
+              onChange={(value) => onUpdateSsdCoefficient('d0', value)}
+              highlight={draftScenario.solution === 's3'}
+              helper="Applies when S3 routes aggregation onto an SSD."
+            />
+            <NumberSlider
+              id="d1"
+              label="d1 (per stripe)"
+              value={draftScenario.ssdCoefficients.d1}
+              min={0}
+              max={10}
+              step={0.1}
+              unit="µs"
+              onChange={(value) => onUpdateSsdCoefficient('d1', value)}
+              highlight={draftScenario.solution === 's3'}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              Aggregator SSD Policy
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {(['pinned', 'roundRobin'] as AggregatorPolicy[]).map((policy) => {
+                const active = draftScenario.aggregatorPolicy === policy;
+                const disabled = draftScenario.solution !== 's3';
+                return (
+                  <button
+                    key={policy}
+                    type="button"
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-xs transition-colors',
+                      active
+                        ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
+                        : 'border-zinc-800 text-zinc-400 hover:border-amber-500/40 hover:text-amber-200',
+                      disabled && 'cursor-not-allowed opacity-60 hover:border-zinc-800 hover:text-zinc-400',
+                    )}
+                    onClick={() => onUpdateScenario({ aggregatorPolicy: policy })}
+                    disabled={disabled}
+                    title={disabled ? 'Aggregator policy applies when S3 is selected.' : undefined}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{AGGREGATOR_POLICY_META[policy]}</span>
+                      <span className="text-[10px] text-zinc-500">
+                        {policy === 'pinned' ? 'Use SSD0 for combines' : 'Rotate aggregator each stripe'}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </Section>
@@ -330,20 +433,51 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   );
 };
 
+
 export interface EnterpriseResultsProps {
   result: SimulationResult;
-  draftScenario: Phase1Scenario;
+  draftScenario: EnterpriseScenario;
   showCritical: boolean;
   onToggleCritical: () => void;
   eventsOpen: boolean;
   onToggleEvents: () => void;
   onRun: () => void;
-  onExport: () => void;
+  onExportScenario: () => void;
+  onExportResults: () => void;
   onImportClick: () => void;
   importError: string | null;
   fileInputRef: React.RefObject<HTMLInputElement>;
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
+
+const renderAggregationTree = (tree: AggregationTree): React.ReactNode => {
+  if (!tree.stages.length) {
+    return (
+      <div className="rounded border border-zinc-900 bg-zinc-950/30 p-3 text-xs text-zinc-500">
+        Aggregation stages will appear once a supported solution is selected.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {tree.stages.map((stage) => (
+        <div
+          key={stage.id}
+          className="min-w-[160px] flex-1 rounded-lg border border-zinc-800 bg-zinc-950/50 p-3"
+        >
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">{stage.label}</div>
+          <div className="mt-2 text-lg font-semibold text-zinc-100">
+            {stage.durationUs > 0 ? formatMicros(stage.durationUs) : '—'}
+          </div>
+          <div className="mt-1 text-[11px] text-zinc-500">
+            Fan-in {stage.fanIn} · Nodes {stage.nodes}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
   result,
@@ -353,29 +487,45 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
   eventsOpen,
   onToggleEvents,
   onRun,
-  onExport,
+  onExportScenario,
+  onExportResults,
   onImportClick,
   importError,
   fileInputRef,
   onImportFile,
 }) => {
   const total = result.derived.totalLatencyUs || 1;
+  const solution = result.scenario.solution;
+  const solutionMeta = SOLUTION_META[solution];
+  const aggregationLabel = AGGREGATION_LOCATION_LABEL[result.derived.aggregatorLocation];
+  const aggregatorPolicyLabel = solution === 's3' ? AGGREGATOR_POLICY_META[result.scenario.aggregatorPolicy] : null;
+  const hasPipelineEstimates =
+    typeof result.derived.pipelineFillUs === 'number' && typeof result.derived.steadyStateUs === 'number';
 
   return (
     <div className="flex h-full flex-col bg-[var(--bg)] text-zinc-100">
       <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/70 px-4 py-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-[11px] font-medium tracking-wide uppercase text-zinc-300">
             Single Solution
           </span>
-          <span className="text-xs text-zinc-500">Phase 1 · Deterministic · Host Aggregation</span>
+          <div>
+            <div className="text-xs font-semibold text-zinc-200">{solutionMeta.label}</div>
+            <div className="text-[11px] text-zinc-500">Phase 2 · Deterministic · {aggregationLabel}</div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={onExport}
+            onClick={onExportScenario}
             className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
           >
-            Export JSON
+            Export Scenario JSON
+          </button>
+          <button
+            onClick={onExportResults}
+            className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Export Results CSV
           </button>
           <button
             onClick={onImportClick}
@@ -419,12 +569,12 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
           <div className="text-[11px] uppercase tracking-wide text-zinc-500">Latency p50 / p95 / p99</div>
           <div className="mt-2 text-2xl font-semibold text-zinc-100">{formatMicros(result.kpis.latencyUs)}</div>
-          <div className="text-xs text-zinc-500">Deterministic in Phase 1</div>
+          <div className="text-xs text-zinc-500">Deterministic slice (Phase 2)</div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
           <div className="text-[11px] uppercase tracking-wide text-zinc-500">Throughput</div>
           <div className="mt-2 text-2xl font-semibold text-zinc-100">{formatObjectsPerSecond(result.kpis.throughputObjsPerSec)}</div>
-          <div className="text-xs text-zinc-500">Objects per second</div>
+          <div className="text-xs text-zinc-500">Objects per second at computed latency</div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 md:col-span-2">
           <div className="text-[11px] uppercase tracking-wide text-zinc-500">Critical Path Breakdown</div>
@@ -439,9 +589,10 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
                   <div
                     className={cn(
                       'h-full rounded-full bg-sky-500 transition-all duration-500',
-                      entry.label.includes('Host') && 'bg-amber-400',
-                      entry.label.includes('SSD') && 'bg-emerald-500',
-                      entry.label.includes('Orchestration') && 'bg-purple-500',
+                      entry.label.toLowerCase().includes('host') && 'bg-amber-400',
+                      entry.label.toLowerCase().includes('ssd') && 'bg-emerald-500',
+                      entry.label.toLowerCase().includes('orchestration') && 'bg-purple-500',
+                      entry.label.toLowerCase().includes('serial') && 'bg-fuchsia-500',
                     )}
                     style={{ width: `${Math.min(100, entry.percent)}%` }}
                   />
@@ -452,12 +603,40 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         </div>
       </div>
 
+      <div className="border-b border-zinc-900 bg-zinc-950/50 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-200">Aggregation Tree</h3>
+            <p className="text-xs text-zinc-500">{solutionMeta.description}</p>
+          </div>
+          <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+            <span>Total {formatMicros(result.aggregationTree.totalUs)}</span>
+            {aggregatorPolicyLabel && <span>Policy · {aggregatorPolicyLabel}</span>}
+          </div>
+        </div>
+        <div className="mt-3">{renderAggregationTree(result.aggregationTree)}</div>
+        {hasPipelineEstimates && (
+          <div className="mt-3 grid gap-2 text-[11px] text-zinc-400 md:grid-cols-2">
+            <div className="rounded border border-zinc-900 bg-zinc-950/30 p-2">
+              <div className="font-semibold uppercase tracking-wide text-zinc-500">Pipeline fill</div>
+              <div className="mt-1 text-sm text-zinc-100">{formatMicros(result.derived.pipelineFillUs ?? 0)}</div>
+              <div className="text-[10px] text-zinc-500">Time to seed across the stripe once.</div>
+            </div>
+            <div className="rounded border border-zinc-900 bg-zinc-950/30 p-2">
+              <div className="font-semibold uppercase tracking-wide text-zinc-500">Steady state</div>
+              <div className="mt-1 text-sm text-zinc-100">{formatMicros(result.derived.steadyStateUs ?? 0)}</div>
+              <div className="text-[10px] text-zinc-500">Per-object latency in the filled pipeline.</div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 overflow-auto px-6 py-4">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-zinc-200">Timeline (Gantt)</h3>
-              <p className="text-xs text-zinc-500">One lane per SSD plus host aggregation lane.</p>
+              <p className="text-xs text-zinc-500">One lane per SSD plus host validation lane.</p>
             </div>
             <div className="rounded-full border border-zinc-800 px-3 py-1 text-[11px] text-zinc-500">
               Object latency {formatMicros(result.derived.totalLatencyUs)}
@@ -553,17 +732,35 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
                 <span className="font-semibold text-zinc-200">{(result.derived.chunkBytes / 1024).toFixed(0)} KiB</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Agg_host (total)</span>
-                <span className="font-semibold text-zinc-200">{formatMicros(result.derived.aggregatorUs)}</span>
+                <span>Aggregation location</span>
+                <span className="font-semibold text-zinc-200">{aggregationLabel}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Agg_host / stripe</span>
+                <span>Aggregator per stripe</span>
                 <span className="font-semibold text-zinc-200">{formatMicros(result.derived.aggregatorPerStripeUs)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>SSD critical path</span>
-                <span className="font-semibold text-zinc-200">{formatMicros(result.derived.ssdCriticalPathUs)}</span>
+                <span>Aggregator total</span>
+                <span className="font-semibold text-zinc-200">{formatMicros(result.derived.aggregatorTotalUs)}</span>
               </div>
+              <div className="flex items-center justify-between">
+                <span>SSD compute critical path</span>
+                <span className="font-semibold text-zinc-200">{formatMicros(result.derived.ssdComputeCriticalPathUs)}</span>
+              </div>
+              {result.derived.ssdAggregateCriticalPathUs > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>Aggregation critical path</span>
+                  <span className="font-semibold text-zinc-200">{formatMicros(result.derived.ssdAggregateCriticalPathUs)}</span>
+                </div>
+              )}
+              {hasPipelineEstimates && (
+                <div className="flex items-center justify-between">
+                  <span>Conservative serial latency</span>
+                  <span className="font-semibold text-zinc-200">
+                    {formatMicros(Math.max(result.derived.pipelineFillUs ?? 0, result.derived.steadyStateUs ?? 0))}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span>Queue depth</span>
                 <span className="font-semibold text-zinc-200">{draftScenario.queueDepth}</span>
@@ -576,7 +773,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
   );
 };
 
-export const computeMdtsSegments = (scenario: Phase1Scenario): number => {
+export const computeMdtsSegments = (scenario: EnterpriseScenario): number => {
   const chunkBytes = scenario.chunkSizeKB * 1024;
   const mdts = Math.max(1, scenario.mdtsBytes);
   return Math.max(1, Math.ceil(chunkBytes / mdts));

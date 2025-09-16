@@ -9,12 +9,29 @@ import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
 import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/EnhancedTooltip';
 import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
 import { EnterpriseSidebar, EnterpriseResults, computeMdtsSegments } from '@/app/components/enterprise/EnterpriseTab';
-import { ENTERPRISE_PHASE1_PRESET, Phase1Scenario, simulatePhase1 } from '@/lib/enterprise/phase1';
+import {
+  ENTERPRISE_PHASE2_PRESET,
+  EnterpriseScenario,
+  simulateEnterprise,
+  AggregationLocation,
+} from '@/lib/enterprise/phase2';
 import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Voice } from '@/voice/voice-asst';
 
 type ViewMode = 'single' | 'compare' | 'timeline';
+
+const ENTERPRISE_SOLUTION_LABELS: Record<EnterpriseScenario['solution'], string> = {
+  s1: 'S1 · Serial (Seeded)',
+  s2: 'S2 · Parallel + Host Aggregation',
+  s3: 'S3 · Parallel + SSD Aggregation',
+};
+
+const ENTERPRISE_AGGREGATION_LABELS: Record<AggregationLocation, string> = {
+  serial: 'Serial pipeline',
+  host: 'Host aggregation',
+  ssd: 'SSD aggregation',
+};
 
 export default function CRCWorkflowVisualizer() {
   const [state, setState] = useState<WorkflowState>(initialState);
@@ -31,8 +48,8 @@ export default function CRCWorkflowVisualizer() {
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'throughput' | 'cpu'>('latency');
   const [currentStage, setCurrentStage] = useState<string>('Ready');
   const [animationProgress, setAnimationProgress] = useState(100); 
-  const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<Phase1Scenario>(ENTERPRISE_PHASE1_PRESET);
-  const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<Phase1Scenario>(ENTERPRISE_PHASE1_PRESET);
+  const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE2_PRESET);
+  const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE2_PRESET);
   const [enterpriseShowCritical, setEnterpriseShowCritical] = useState(false);
   const [enterpriseEventsOpen, setEnterpriseEventsOpen] = useState(true);
   const [enterpriseImportError, setEnterpriseImportError] = useState<string | null>(null);
@@ -42,9 +59,10 @@ export default function CRCWorkflowVisualizer() {
   const dummyRef = useRef<SVGSVGElement>(null);
   const enterpriseFileInputRef = useRef<HTMLInputElement>(null);
 
-  const cloneEnterpriseScenario = useCallback((scenario: Phase1Scenario): Phase1Scenario => ({
+  const cloneEnterpriseScenario = useCallback((scenario: EnterpriseScenario): EnterpriseScenario => ({
     ...scenario,
     hostCoefficients: { ...scenario.hostCoefficients },
+    ssdCoefficients: { ...scenario.ssdCoefficients },
   }), []);
 
   // Apply dark/light mode with smooth transitions
@@ -82,7 +100,7 @@ export default function CRCWorkflowVisualizer() {
   const compareState = useMemo(() => ({ ...state, solution: compareSolution }), [state, compareSolution]);
   const compareModel = useMemo(() => buildWorkflowModel(compareState), [compareState]);
   const enterpriseResult = useMemo(
-    () => simulatePhase1(enterpriseCommittedScenario),
+    () => simulateEnterprise(enterpriseCommittedScenario),
     [enterpriseCommittedScenario]
   );
   const enterpriseMdtsSegments = useMemo(
@@ -98,17 +116,18 @@ export default function CRCWorkflowVisualizer() {
 
   const loadEnterprisePreset = useCallback(() => {
     setEnterpriseImportError(null);
-    const presetDraft = cloneEnterpriseScenario(ENTERPRISE_PHASE1_PRESET);
+    const presetDraft = cloneEnterpriseScenario(ENTERPRISE_PHASE2_PRESET);
     setEnterpriseDraftScenario(presetDraft);
-    setEnterpriseCommittedScenario(cloneEnterpriseScenario(ENTERPRISE_PHASE1_PRESET));
+    setEnterpriseCommittedScenario(cloneEnterpriseScenario(ENTERPRISE_PHASE2_PRESET));
   }, [cloneEnterpriseScenario]);
 
-  const updateEnterpriseScenario = useCallback((update: Partial<Phase1Scenario>) => {
+  const updateEnterpriseScenario = useCallback((update: Partial<EnterpriseScenario>) => {
     setEnterpriseImportError(null);
     setEnterpriseDraftScenario((prev) => ({
       ...prev,
       ...update,
       hostCoefficients: update.hostCoefficients ? { ...update.hostCoefficients } : prev.hostCoefficients,
+      ssdCoefficients: update.ssdCoefficients ? { ...update.ssdCoefficients } : prev.ssdCoefficients,
     }));
   }, []);
 
@@ -123,13 +142,25 @@ export default function CRCWorkflowVisualizer() {
     }));
   }, []);
 
+  const updateEnterpriseSsdCoefficient = useCallback((key: 'd0' | 'd1', value: number) => {
+    setEnterpriseImportError(null);
+    setEnterpriseDraftScenario((prev) => ({
+      ...prev,
+      ssdCoefficients: {
+        ...prev.ssdCoefficients,
+        [key]: value,
+      },
+    }));
+  }, []);
+
   const exportEnterpriseScenario = useCallback(() => {
     const scenarioToExport = cloneEnterpriseScenario(enterpriseResult.scenario);
     const blob = new Blob([JSON.stringify(scenarioToExport, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `crc_enterprise_s2_${Date.now()}.json`;
+    const solutionTag = scenarioToExport.solution.toUpperCase();
+    link.download = `crc_enterprise_${solutionTag}_${Date.now()}.json`;
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {
@@ -137,6 +168,110 @@ export default function CRCWorkflowVisualizer() {
       link.remove();
     }, 0);
   }, [cloneEnterpriseScenario, enterpriseResult.scenario]);
+
+  const exportEnterpriseResults = useCallback(() => {
+    const { scenario, kpis, lanes, derived, aggregationTree, events } = enterpriseResult;
+    const escapeCsv = (value: string | number | null | undefined): string => {
+      const text =
+        value === null || value === undefined
+          ? ''
+          : typeof value === 'number'
+            ? value.toString()
+            : value;
+      if (text.includes('"') || text.includes(',') || text.includes('\n')) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const lines: string[] = [];
+    lines.push('KPIs');
+    const kpiRows: Array<[string, string]> = [
+      ['Solution', ENTERPRISE_SOLUTION_LABELS[scenario.solution]],
+      ['Aggregation Location', ENTERPRISE_AGGREGATION_LABELS[derived.aggregatorLocation]],
+      ['Latency_us', kpis.latencyUs.toFixed(3)],
+      ['Throughput_objs_per_s', kpis.throughputObjsPerSec.toFixed(3)],
+      ['Total_Latency_us', derived.totalLatencyUs.toFixed(3)],
+      ['Aggregator_Total_us', derived.aggregatorTotalUs.toFixed(3)],
+      ['Aggregator_Per_Stripe_us', derived.aggregatorPerStripeUs.toFixed(3)],
+    ];
+    if (typeof derived.pipelineFillUs === 'number') {
+      kpiRows.push(['Pipeline_Fill_us', derived.pipelineFillUs.toFixed(3)]);
+    }
+    if (typeof derived.steadyStateUs === 'number') {
+      kpiRows.push(['Steady_State_us', derived.steadyStateUs.toFixed(3)]);
+    }
+    kpis.criticalPath.forEach((entry) => {
+      kpiRows.push([
+        `Critical_${entry.label.replace(/,/g, '')}_us`,
+        `${entry.valueUs.toFixed(3)} (${entry.percent.toFixed(1)}%)`,
+      ]);
+    });
+    kpiRows.forEach((row) => {
+      lines.push(row.map(escapeCsv).join(','));
+    });
+
+    lines.push('');
+    lines.push('Aggregation Tree');
+    lines.push(['Stage', 'Duration_us', 'Fan_in', 'Nodes'].map(escapeCsv).join(','));
+    aggregationTree.stages.forEach((stage) => {
+      lines.push(
+        [
+          stage.label,
+          stage.durationUs.toFixed(3),
+          stage.fanIn.toString(),
+          stage.nodes.toString(),
+        ].map(escapeCsv).join(','),
+      );
+    });
+    lines.push(['Total', aggregationTree.totalUs.toFixed(3), '', ''].map(escapeCsv).join(','));
+
+    lines.push('');
+    lines.push('Timeline Segments');
+    lines.push(
+      ['Lane', 'Segment', 'Kind', 'Start_us', 'End_us', 'Duration_us', 'Chunk', 'Command'].map(escapeCsv).join(','),
+    );
+    lanes.forEach((lane) => {
+      lane.segments.forEach((segment) => {
+        const duration = segment.endUs - segment.startUs;
+        lines.push(
+          [
+            lane.label,
+            segment.label,
+            segment.kind,
+            segment.startUs.toFixed(3),
+            segment.endUs.toFixed(3),
+            duration.toFixed(3),
+            segment.chunkIndex !== undefined ? segment.chunkIndex.toString() : '',
+            segment.commandIndex !== undefined ? segment.commandIndex.toString() : '',
+          ].map(escapeCsv).join(','),
+        );
+      });
+    });
+
+    lines.push('');
+    lines.push('Events');
+    lines.push(['Time_us', 'Type', 'Message'].map(escapeCsv).join(','));
+    events.forEach((event) => {
+      lines.push(
+        [event.timeUs.toFixed(3), event.type, event.message].map(escapeCsv).join(','),
+      );
+    });
+
+    const csvContent = lines.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const solutionTag = scenario.solution.toUpperCase();
+    link.download = `crc_enterprise_results_${solutionTag}_${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 0);
+  }, [enterpriseResult]);
 
   const importEnterpriseScenarioClick = useCallback(() => {
     setEnterpriseImportError(null);
@@ -156,8 +291,8 @@ export default function CRCWorkflowVisualizer() {
     reader.onload = () => {
       try {
         const text = typeof reader.result === 'string' ? reader.result : '';
-        const parsed = JSON.parse(text) as Phase1Scenario;
-        const normalised = simulatePhase1(parsed).scenario;
+        const parsed = JSON.parse(text) as EnterpriseScenario;
+        const normalised = simulateEnterprise(parsed).scenario;
         setEnterpriseDraftScenario(cloneEnterpriseScenario(normalised));
         setEnterpriseCommittedScenario(cloneEnterpriseScenario(normalised));
         setEnterpriseImportError(null);
@@ -170,7 +305,7 @@ export default function CRCWorkflowVisualizer() {
       setEnterpriseImportError('Unable to read scenario file.');
     };
     reader.readAsText(file);
-  }, [cloneEnterpriseScenario, simulatePhase1]);
+  }, [cloneEnterpriseScenario]);
 
   // Animation logic
   useEffect(() => {
@@ -654,6 +789,7 @@ export default function CRCWorkflowVisualizer() {
               mdtsClamp={enterpriseMdtsClamp}
               onUpdateScenario={updateEnterpriseScenario}
               onUpdateHostCoefficient={updateEnterpriseHostCoefficient}
+              onUpdateSsdCoefficient={updateEnterpriseSsdCoefficient}
               onPreset={loadEnterprisePreset}
             />
           </motion.div>
@@ -945,7 +1081,8 @@ export default function CRCWorkflowVisualizer() {
                     eventsOpen={enterpriseEventsOpen}
                     onToggleEvents={() => setEnterpriseEventsOpen((prev) => !prev)}
                     onRun={runEnterpriseSimulation}
-                    onExport={exportEnterpriseScenario}
+                    onExportScenario={exportEnterpriseScenario}
+                    onExportResults={exportEnterpriseResults}
                     onImportClick={importEnterpriseScenarioClick}
                     importError={enterpriseImportError}
                     fileInputRef={enterpriseFileInputRef}
