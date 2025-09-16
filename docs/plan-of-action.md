@@ -101,7 +101,7 @@ Allow users to pick **any** of S1, S2, S3 and see the different critical paths; 
 * **Simulation engine:**
 
   * **S1 (Serial seeded):** strict ordering; compute **fill** and **steady‑state** estimates; report the conservative one.
-  * **S3 (SSD aggregate):** add `Agg_ssd(x) = d0 + d1·x`; place aggregation on chosen SSD lane (no congestion yet).
+  * **S3 (SSD aggregate):** add `Agg_ssd(x) = d0 + d1·x`; place aggregation on chosen SSD lane (no congestion yet). **Document the hardware tradeoff** — `d0` captures command fan-in across NVMe, `d1` represents ARM-core aggregate cost so teams can model slower on-device combine vs host CPU. Guidance lives in Results copy/tooltips.
 * **Results:**
 
   * **Aggregation Tree (basic):** shows depth `log₂x` for S2 and single‑stage device combine for S3 with labeled stage costs.
