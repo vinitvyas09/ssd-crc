@@ -11,6 +11,7 @@ import {
   TimelineSegmentKind,
   ServiceDistribution,
   RetryPolicy,
+  CalibrationProfile,
 } from '@/lib/enterprise/phase3';
 import { cn } from '@/lib/utils';
 
@@ -192,6 +193,17 @@ export interface EnterpriseSidebarProps {
   onPreset: () => void;
   mode: EnterpriseMode;
   onModeChange: (mode: EnterpriseMode) => void;
+  calibrationProfiles: CalibrationProfile[];
+  onCalibrationPaste: () => void;
+  onCalibrationImportClick: () => void;
+  onCalibrationFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  calibrationFileInputRef: React.RefObject<HTMLInputElement>;
+  onCalibrationProfileSelect: (profileId: string | null) => void;
+  onCalibrationSave: () => void;
+  onCalibrationClear: () => void;
+  onCalibrationToggleDefaults: (value: boolean) => void;
+  calibrationWarnings: string[];
+  calibrationImportError: string | null;
 }
 
 export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
@@ -204,7 +216,27 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   onPreset,
   mode,
   onModeChange,
+  calibrationProfiles,
+  onCalibrationPaste,
+  onCalibrationImportClick,
+  onCalibrationFile,
+  calibrationFileInputRef,
+  onCalibrationProfileSelect,
+  onCalibrationSave,
+  onCalibrationClear,
+  onCalibrationToggleDefaults,
+  calibrationWarnings,
+  calibrationImportError,
 }) => {
+  const calibration = draftScenario.calibration;
+  const activeProfileLabel = calibration?.label ?? (calibration?.profileId ? 'Imported profile' : 'None');
+  const activeSampleCount = calibration?.sampleCount;
+  const activeTolerance = calibration?.tolerancePercent ?? 15;
+  const usingDefaults = calibration?.useProfileDefaults ?? false;
+  const warnings = calibration?.warnings && calibration.warnings.length > 0
+    ? calibration.warnings
+    : calibrationWarnings;
+
   return (
     <div className="space-y-6 p-4">
       <Section title="Mode">
@@ -594,6 +626,106 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
         />
       </Section>
 
+      <Section title="Calibration">
+        <div className="space-y-3 rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 text-xs text-zinc-300">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] uppercase tracking-wide text-zinc-500">Active profile</span>
+            <span className="font-semibold text-zinc-100">{activeProfileLabel}</span>
+          </div>
+          <div className="grid gap-2 text-[11px]">
+            <div className="flex items-center justify-between">
+              <span>Sample count</span>
+              <span className="font-semibold text-zinc-100">{typeof activeSampleCount === 'number' ? activeSampleCount : '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Tolerance window</span>
+              <span className="font-semibold text-zinc-100">{activeTolerance}%</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Defaults</span>
+              <button
+                type="button"
+                onClick={() => onCalibrationToggleDefaults(!usingDefaults)}
+                className={cn(
+                  'rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors',
+                  usingDefaults
+                    ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                    : 'border-zinc-700 text-zinc-400 hover:border-emerald-500/40 hover:text-emerald-200',
+                )}
+              >
+                {usingDefaults ? 'Using profile defaults' : 'Manual overrides'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-2 pt-3 text-[11px]">
+            <select
+              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-200"
+              value={calibration?.profileId ?? ''}
+              onChange={(event) => onCalibrationProfileSelect(event.target.value ? event.target.value : null)}
+            >
+              <option value="">Select saved profile…</option>
+              {calibrationProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.label}
+                </option>
+              ))}
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onCalibrationImportClick}
+                className="rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 transition hover:border-sky-500/40 hover:text-sky-200"
+              >
+                Import log file
+              </button>
+              <button
+                type="button"
+                onClick={onCalibrationPaste}
+                className="rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 transition hover:border-sky-500/40 hover:text-sky-200"
+              >
+                Paste log
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onCalibrationSave}
+                className="rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 transition hover:border-emerald-500/40 hover:text-emerald-200"
+              >
+                Save profile
+              </button>
+              <button
+                type="button"
+                onClick={onCalibrationClear}
+                className="rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 transition hover:border-rose-500/40 hover:text-rose-200"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+        <input
+          ref={calibrationFileInputRef}
+          type="file"
+          accept=".txt,.log,.json,.jsonc"
+          hidden
+          onChange={onCalibrationFile}
+        />
+        {calibrationImportError && (
+          <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
+            {calibrationImportError}
+          </div>
+        )}
+        {warnings && warnings.length > 0 && (
+          <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+            {warnings.map((warning) => (
+              <div key={warning}>{warning}</div>
+            ))}
+          </div>
+        )}
+      </Section>
+
       <Section title="Presets">
         <button
           onClick={onPreset}
@@ -695,7 +827,7 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
             Compare Trio
           </span>
           <div>
-            <div className="text-xs font-semibold text-zinc-200">All solutions · Phase 3 stochastic</div>
+            <div className="text-xs font-semibold text-zinc-200">All solutions · Phase 4 calibrated stochastic</div>
             <div className="text-[11px] text-zinc-500">
               Stripe {draftScenario.stripeWidth} · Objects {draftScenario.objectsInFlight} · Seed {draftScenario.randomSeed}
             </div>
@@ -759,6 +891,11 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
               ? ((item.kpis.throughputObjsPerSec - bestThroughput) / bestThroughput) * 100
               : 0;
             const ratio = bestP99 > 0 ? item.kpis.p99Us / bestP99 : 1;
+            const confidenceSet = item.kpis.confidence;
+            const confidenceLabel = confidenceSet ? `${Math.round(confidenceSet.confidenceLevel * 100)}% CI` : null;
+            const p99Margin = confidenceSet?.p99?.margin;
+            const latencyMargin = confidenceSet?.latency?.margin;
+            const throughputMargin = confidenceSet?.throughput?.margin;
 
             return (
               <div
@@ -782,6 +919,9 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
                       {deltaP99 <= 0 ? 'best' : `+${formatMicros(deltaP99)}`}
                     </span>
                   </div>
+                  {p99Margin && p99Margin > 0 && confidenceLabel && (
+                    <div className="text-[10px] text-zinc-500">± {formatMicros(p99Margin)} ({confidenceLabel})</div>
+                  )}
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-zinc-800">
                     <div
                       className={cn(
@@ -799,6 +939,9 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
                     {deltaLatency > 0 && (
                       <div className="text-[10px] text-rose-300">+{formatMicros(deltaLatency)}</div>
                     )}
+                    {latencyMargin && latencyMargin > 0 && confidenceLabel && (
+                      <div className="text-[10px] text-zinc-500">± {formatMicros(latencyMargin)} ({confidenceLabel})</div>
+                    )}
                   </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-wide">Throughput</div>
@@ -806,6 +949,11 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
                     {deltaThroughput !== 0 && (
                       <div className={cn('text-[10px]', deltaThroughput >= 0 ? 'text-emerald-300' : 'text-rose-300')}>
                         {deltaThroughput >= 0 ? '+' : ''}{deltaThroughput.toFixed(1)}%
+                      </div>
+                    )}
+                    {throughputMargin && throughputMargin > 0 && confidenceLabel && (
+                      <div className="text-[10px] text-zinc-500">
+                        ± {formatObjectsPerSecond(throughputMargin)} ({confidenceLabel})
                       </div>
                     )}
                   </div>
@@ -825,6 +973,12 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
                     <div className="text-[10px] uppercase tracking-wide">Runbook entries</div>
                     <div className="text-sm font-semibold text-zinc-100">{item.runbook.length}</div>
                   </div>
+                  {confidenceSet && (
+                    <div className="col-span-2 rounded-md border border-zinc-800/60 bg-zinc-900/40 px-3 py-2 text-[10px] text-zinc-400">
+                      <div className="font-semibold text-zinc-200">Confidence</div>
+                      <div>{Math.round(confidenceSet.confidenceLevel * 100)}% CI · n={confidenceSet.objectCount}</div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -884,12 +1038,13 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
     draftScenario.serviceDistribution === 'deterministic'
       ? 'Deterministic μ only'
       : `${draftScenario.serviceDistribution === 'lognormal' ? 'Lognormal' : 'Gamma'} μ=${draftScenario.crcPer4kUs.toFixed(0)} µs σ=${draftScenario.crcSigmaPer4kUs.toFixed(0)} µs`;
+  const confidence = result.kpis.confidence;
 
   const metrics = [
-    { label: 'Latency p50', value: formatMicros(result.kpis.p50Us) },
-    { label: 'Latency p95', value: formatMicros(result.kpis.p95Us) },
-    { label: 'Latency p99', value: formatMicros(result.kpis.p99Us) },
-    { label: 'Throughput', value: formatObjectsPerSecond(result.kpis.throughputObjsPerSec) },
+    { label: 'Latency p50', value: result.kpis.p50Us, formatter: formatMicros, margin: confidence?.p50?.margin },
+    { label: 'Latency p95', value: result.kpis.p95Us, formatter: formatMicros, margin: confidence?.p95?.margin },
+    { label: 'Latency p99', value: result.kpis.p99Us, formatter: formatMicros, margin: confidence?.p99?.margin },
+    { label: 'Throughput', value: result.kpis.throughputObjsPerSec, formatter: formatObjectsPerSecond, margin: confidence?.throughput?.margin },
   ];
 
   const summaryChips = [
@@ -898,6 +1053,13 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
     { label: 'Objects', value: String(result.derived.objectLatenciesUs.length) },
     { label: 'Seed', value: `#${draftScenario.randomSeed}` },
   ];
+
+  if (confidence) {
+    summaryChips.push({
+      label: 'Confidence',
+      value: `${Math.round(confidence.confidenceLevel * 100)}% · n=${confidence.objectCount}`,
+    });
+  }
 
   return (
     <div className="flex h-full flex-col bg-[var(--bg)] text-zinc-100">
@@ -909,7 +1071,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
           <div>
             <div className="text-xs font-semibold text-zinc-200">{solutionMeta.label}</div>
             <div className="text-[11px] text-zinc-500">
-              Phase 3 · {distributionDescriptor} · {aggregationLabel}
+              Phase 4 · {distributionDescriptor} · {aggregationLabel}
               {aggregatorPolicyLabel ? ` · ${aggregatorPolicyLabel}` : ''}
             </div>
           </div>
@@ -977,12 +1139,26 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
       <div className="flex-1 overflow-auto">
         <div className="space-y-6 px-6 py-6">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {metrics.map((metric) => (
-              <div key={metric.label} className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-4 shadow-sm">
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500">{metric.label}</div>
-                <div className="mt-1 text-xl font-semibold text-zinc-100">{metric.value}</div>
-              </div>
-            ))}
+            {metrics.map((metric) => {
+              const displayValue = metric.formatter(metric.value);
+              const marginValue = metric.margin && metric.margin > 0 ? metric.formatter(metric.margin) : null;
+              return (
+                <div key={metric.label} className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-4 shadow-sm">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">{metric.label}</div>
+                  <div className="mt-1 text-xl font-semibold text-zinc-100">{displayValue}</div>
+                  {marginValue && (
+                    <div className="text-[11px] text-zinc-500">
+                      ± {marginValue}
+                      {confidence && (
+                        <span className="ml-1 text-zinc-600">
+                          ({Math.round(confidence.confidenceLevel * 100)}% CI)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -1149,6 +1325,51 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
                   <span>Queue depth</span>
                   <span className="font-semibold text-zinc-200">{draftScenario.queueDepth}</span>
                 </div>
+                {calibrationSummary && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span>Calibration profile</span>
+                      <span className="font-semibold text-zinc-200">{calibrationSummary.label ?? '—'}</span>
+                    </div>
+                    {calibrationSummary.muPer4kUs !== undefined && (
+                      <div className="flex items-center justify-between">
+                        <span>μ per 4 KiB</span>
+                        <span className="font-semibold text-zinc-200">{formatMicros(calibrationSummary.muPer4kUs)}</span>
+                      </div>
+                    )}
+                    {calibrationSummary.sigmaPer4kUs !== undefined && (
+                      <div className="flex items-center justify-between">
+                        <span>σ per 4 KiB</span>
+                        <span className="font-semibold text-zinc-200">{formatMicros(calibrationSummary.sigmaPer4kUs)}</span>
+                      </div>
+                    )}
+                    {calibrationSummary.sampleCount !== undefined && (
+                      <div className="flex items-center justify-between">
+                        <span>Calibration samples</span>
+                        <span className="font-semibold text-zinc-200">{calibrationSummary.sampleCount}</span>
+                      </div>
+                    )}
+                    {calibrationSummary.tolerancePercent !== undefined && (
+                      <div className="flex items-center justify-between">
+                        <span>Tolerance window</span>
+                        <span className="font-semibold text-zinc-200">{calibrationSummary.tolerancePercent}%</span>
+                      </div>
+                    )}
+                    {confidence?.latency?.margin && confidence.latency.margin > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span>Latency margin (CI)</span>
+                        <span className="font-semibold text-zinc-200">{formatMicros(confidence.latency.margin)}</span>
+                      </div>
+                    )}
+                    {calibrationSummary.warnings && calibrationSummary.warnings.length > 0 && (
+                      <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                        {calibrationSummary.warnings.map((warning) => (
+                          <div key={warning}>{warning}</div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
