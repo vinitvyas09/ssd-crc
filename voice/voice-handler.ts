@@ -7,6 +7,9 @@ import { useEffect, useState } from "react";
 import { vapi } from "@/voice/vapi.sdk";
 import { assistant } from "@/voice/voice-config";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 /**
  * Enum representing the possible states of a voice call
  */
@@ -71,27 +74,27 @@ export function useVapi() {
     };
 
     // Error handler for call failures
-    const onError = (e: any) => {
+    const onError = (error: unknown) => {
       setCallStatus(CALL_STATUS.INACTIVE);
       
       // Improved error logging
-      if (e && typeof e === 'object') {
-        // Check if it's an Error object
-        if (e instanceof Error) {
-          console.error('Vapi Error:', e.message, e);
-        } else if (e.error) {
-          // Check for nested error property
-          console.error('Vapi Error:', e.error, e);
-        } else if (e.message) {
-          // Check for message property
-          console.error('Vapi Error:', e.message, e);
-        } else {
-          // Log the full object with stringify for better visibility
-          console.error('Vapi Error:', JSON.stringify(e, null, 2));
-        }
-      } else {
-        console.error('Vapi Error:', e);
+      if (error instanceof Error) {
+        console.error('Vapi Error:', error.message, error);
+        return;
       }
+
+      if (isRecord(error)) {
+        if (typeof error.error === "string") {
+          console.error('Vapi Error:', error.error, error);
+        } else if (typeof error.message === "string") {
+          console.error('Vapi Error:', error.message, error);
+        } else {
+          console.error('Vapi Error:', JSON.stringify(error, null, 2));
+        }
+        return;
+      }
+
+      console.error('Vapi Error:', error);
     };
 
     // Set up event listeners for the Vapi SDK
@@ -113,7 +116,6 @@ export function useVapi() {
       vapi.off("message", onMessageUpdate);
       vapi.off("error", onError);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -138,7 +140,7 @@ export function useVapi() {
         toolsCount: assistant.model.tools?.length || 0
       });
       
-      const response = await vapi.start(assistant as any);
+      await vapi.start(assistant);
       console.log("Vapi call started successfully");
     } catch (error) {
       if (error instanceof Error) {
