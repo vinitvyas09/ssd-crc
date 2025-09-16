@@ -316,7 +316,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               step={1}
               unit="µs"
               onChange={(value) => onUpdateHostCoefficient('c0', value)}
-              helper="Used by S2 when aggregation stays on the host."
+              helper="Host orchestration + memory traffic per stripe."
               highlight={draftScenario.solution === 's2'}
             />
             <NumberSlider
@@ -357,7 +357,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               unit="µs"
               onChange={(value) => onUpdateSsdCoefficient('d0', value)}
               highlight={draftScenario.solution === 's3'}
-              helper="Applies when S3 routes aggregation onto an SSD."
+              helper="NVMe fan-in + command staging before SSD aggregation."
             />
             <NumberSlider
               id="d1"
@@ -369,6 +369,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               unit="µs"
               onChange={(value) => onUpdateSsdCoefficient('d1', value)}
               highlight={draftScenario.solution === 's3'}
+              helper="Per-stripe combine work on SSD ARM cores; raise to model slower device compute."
             />
           </div>
 
@@ -608,6 +609,11 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
           <div>
             <h3 className="text-sm font-semibold text-zinc-200">Aggregation Tree</h3>
             <p className="text-xs text-zinc-500">{solutionMeta.description}</p>
+            {solution === 's3' && (
+              <p className="mt-1 text-[11px] text-amber-300">
+                Defaults assume ARM aggregation lags host CPUs — adjust <code>d0</code>/<code>d1</code> to explore faster firmware paths.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3 text-[11px] text-zinc-500">
             <span>Total {formatMicros(result.aggregationTree.totalUs)}</span>
