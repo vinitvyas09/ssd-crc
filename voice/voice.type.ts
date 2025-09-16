@@ -29,21 +29,22 @@ export enum MessageTypeEnum {
     transcript: string;
   }
   
-  export interface FunctionCallMessage extends BaseMessage {
+export interface FunctionCallMessage extends BaseMessage {
     type: MessageTypeEnum.FUNCTION_CALL;
     functionCall: {
       name: string;
-      parameters: any;
+      parameters: Record<string, unknown>;
     };
   }
   
+  export interface FunctionCallResultPayload extends Record<string, unknown> {
+    forwardToClientEnabled?: boolean;
+    result: unknown;
+  }
+
   export interface FunctionCallResultMessage extends BaseMessage {
     type: MessageTypeEnum.FUNCTION_CALL_RESULT;
-    functionCallResult: {
-      forwardToClientEnabled?: boolean;
-      result: any;
-      [a: string]: any;
-    };
+    functionCallResult: FunctionCallResultPayload;
   }
   
   export interface ModelOutputMessage extends BaseMessage {
