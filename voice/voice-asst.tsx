@@ -4,9 +4,27 @@ import { useVapi } from "@/voice/voice-handler";
 import { AssistantButton } from "@/voice/voice-button";
 import { useRef, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { MessageRoleEnum, MessageTypeEnum } from "./voice.type";
+import {
+  Message,
+  MessageRoleEnum,
+  MessageTypeEnum,
+  ModelOutputMessage,
+  FunctionCallMessage,
+} from "./voice.type";
 import "./voice.css";
-import { ChevronDown, ChevronUp, Mic, MicOff, Sparkles, Phone, Activity, Clock, MessageSquare } from "lucide-react";
+import { ChevronDown, ChevronUp, Mic, Sparkles, Activity, Clock, MessageSquare } from "lucide-react";
+
+const isAssistantModelOutput = (
+  message: Message
+): message is ModelOutputMessage =>
+  message.role === MessageRoleEnum.ASSISTANT &&
+  message.type === MessageTypeEnum.MODEL_OUTPUT;
+
+const isAssistantFunctionCall = (
+  message: Message
+): message is FunctionCallMessage =>
+  message.role === MessageRoleEnum.ASSISTANT &&
+  message.type === MessageTypeEnum.FUNCTION_CALL;
 
 function Voice() {
     const { toggleCall, callStatus, audioLevel, messages, activeTranscript, isSpeechActive } = useVapi();
@@ -27,19 +45,13 @@ function Voice() {
 
     // Get latest assistant message to display
     const latestAssistantMessage = messages
-      .filter(msg => 
-        msg.role === MessageRoleEnum.ASSISTANT && 
-        msg.type === MessageTypeEnum.MODEL_OUTPUT
-      )
-      .pop();
+      .filter(isAssistantModelOutput)
+      .at(-1);
 
     // Get latest function call if any
     const latestFunctionCall = messages
-      .filter(msg => 
-        msg.role === MessageRoleEnum.ASSISTANT && 
-        msg.type === MessageTypeEnum.FUNCTION_CALL
-      )
-      .pop();
+      .filter(isAssistantFunctionCall)
+      .at(-1);
 
     // Count total messages in conversation
     const messageCount = messages.filter(msg => 
@@ -191,7 +203,7 @@ function Voice() {
                         className="italic font-light"
                         style={{ color: 'var(--fg)' }}
                       >
-                        "{activeTranscript.transcript}"
+                        &ldquo;{activeTranscript.transcript}&rdquo;
                       </motion.p>
                     </motion.div>
                   )}
@@ -252,14 +264,14 @@ function Voice() {
                   <AnimatePresence mode="wait">
                     {latestAssistantMessage ? (
                       <motion.div
-                        key={(latestAssistantMessage as any)?.output}
+                        key={latestAssistantMessage.output ?? "assistant-response"}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ duration: 0.3 }}
                       >
                         <p className="text-lg font-light leading-relaxed" style={{ color: 'var(--fg)' }}>
-                          {(latestAssistantMessage as any).output}
+                          {latestAssistantMessage.output}
                         </p>
                         
                         {/* Function Call Indicator */}
@@ -271,7 +283,7 @@ function Voice() {
                           >
                             <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--accent)' }}>
                               <Activity className="w-3 h-3" />
-                              <span>Using: {(latestFunctionCall as any).functionCall?.name}</span>
+                              <span>Using: {latestFunctionCall.functionCall.name}</span>
                             </div>
                           </motion.div>
                         )}
