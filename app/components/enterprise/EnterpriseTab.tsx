@@ -8,8 +8,13 @@ import {
   EnterpriseSolution,
   AggregatorPolicy,
   AggregationLocation,
-} from '@/lib/enterprise/phase2';
+  TimelineSegmentKind,
+  ServiceDistribution,
+  RetryPolicy,
+} from '@/lib/enterprise/phase3';
 import { cn } from '@/lib/utils';
+
+export type EnterpriseMode = 'single' | 'compare';
 
 interface NumberSliderProps {
   id: string;
@@ -23,6 +28,7 @@ interface NumberSliderProps {
   disabled?: boolean;
   highlight?: boolean;
   helper?: string;
+  formatValue?: (value: number) => string;
 }
 
 const NumberSlider: React.FC<NumberSliderProps> = ({
@@ -37,6 +43,7 @@ const NumberSlider: React.FC<NumberSliderProps> = ({
   disabled,
   highlight,
   helper,
+  formatValue,
 }) => {
   const handleNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const numeric = parseFloat(event.target.value);
@@ -45,6 +52,8 @@ const NumberSlider: React.FC<NumberSliderProps> = ({
       onChange(clamped);
     }
   };
+
+  const displayValue = formatValue ? formatValue(value) : value.toFixed(value % 1 === 0 ? 0 : 1);
 
   return (
     <div
@@ -59,7 +68,7 @@ const NumberSlider: React.FC<NumberSliderProps> = ({
           {label}
         </label>
         <div className="flex items-center gap-1 text-[10px] text-zinc-500">
-          <span>{value.toFixed(value % 1 === 0 ? 0 : 1)}</span>
+          <span>{displayValue}</span>
           {unit && <span>{unit}</span>}
         </div>
       </div>
@@ -113,7 +122,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode; disabled?: b
   return <div title={tooltip}>{content}</div>;
 };
 
-const segmentColor = (kind: 'io' | 'compute' | 'aggregation' | 'finalize'): string => {
+const segmentColor = (kind: TimelineSegmentKind): string => {
   switch (kind) {
     case 'compute':
       return 'bg-emerald-500/70 text-emerald-50';
@@ -121,6 +130,10 @@ const segmentColor = (kind: 'io' | 'compute' | 'aggregation' | 'finalize'): stri
       return 'bg-amber-400/80 text-zinc-900';
     case 'finalize':
       return 'bg-sky-500/70 text-zinc-900';
+    case 'retry':
+      return 'bg-rose-500/70 text-rose-50';
+    case 'wait':
+      return 'bg-zinc-600/50 text-zinc-100';
     default:
       return 'bg-blue-500/40 text-blue-50';
   }
@@ -177,6 +190,8 @@ export interface EnterpriseSidebarProps {
   onUpdateHostCoefficient: (key: 'c0' | 'c1' | 'c2', value: number) => void;
   onUpdateSsdCoefficient: (key: 'd0' | 'd1', value: number) => void;
   onPreset: () => void;
+  mode: EnterpriseMode;
+  onModeChange: (mode: EnterpriseMode) => void;
 }
 
 export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
@@ -187,9 +202,37 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   onUpdateHostCoefficient,
   onUpdateSsdCoefficient,
   onPreset,
+  mode,
+  onModeChange,
 }) => {
   return (
     <div className="space-y-6 p-4">
+      <Section title="Mode">
+        <div className="grid grid-cols-2 gap-2">
+          {(['single', 'compare'] as EnterpriseMode[]).map((option) => {
+            const active = mode === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                className={cn(
+                  'rounded-lg border px-3 py-2 text-xs font-semibold transition-colors',
+                  active
+                    ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
+                    : 'border-zinc-800 text-zinc-400 hover:border-sky-500/40 hover:text-sky-200',
+                )}
+                onClick={() => onModeChange(option)}
+              >
+                {option === 'single' ? 'Single Solution' : 'Compare Trio'}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-zinc-500">
+          Compare mode runs S1/S2/S3 on the same configuration so you can inspect tail behaviour across strategies.
+        </p>
+      </Section>
+
       <Section title="Topology">
         <NumberSlider
           id="stripeWidth"
@@ -205,11 +248,10 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
           label="Objects in Flight"
           value={draftScenario.objectsInFlight}
           min={1}
-          max={8}
+          max={16}
           step={1}
           onChange={(value) => onUpdateScenario({ objectsInFlight: value })}
-          helper="Deterministic slice keeps one object; multi-object fan-in lands with Phase 3."
-          disabled
+          helper="Concurrent CRC validations sharing the SSD fleet."
         />
       </Section>
 
@@ -247,7 +289,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
           <div className="flex items-center justify-between">
             <span className="font-medium text-zinc-300">MDTS</span>
             <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] text-zinc-400">
-              {(draftScenario.mdtsBytes / 1024).toFixed(0)} KiB (read-only)
+              {(draftScenario.mdtsBytes / 1024).toFixed(0)} KiB
             </span>
           </div>
           <NumberSlider
@@ -258,16 +300,88 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
             max={64}
             step={1}
             onChange={(value) => onUpdateScenario({ queueDepth: value })}
-            disabled
-            helper="Phase 2 keeps a single outstanding command per SSD; queueing unlocks with stochastic mode."
+            helper="Outstanding NVMe CRC commands per SSD. Higher depth increases contention."
           />
           <div className="flex items-center justify-between">
             <span className="font-medium text-zinc-300">Threads</span>
             <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[11px] text-zinc-400">
-              {draftScenario.threads} (display)
+              {draftScenario.threads}
             </span>
           </div>
         </div>
+      </Section>
+
+      <Section title="Service Time Model">
+        <div className="grid gap-2 rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 text-xs">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Distribution</div>
+          <div className="grid grid-cols-3 gap-2 text-[11px]">
+            {(['deterministic', 'lognormal', 'gamma'] as ServiceDistribution[]).map((distribution) => {
+              const active = draftScenario.serviceDistribution === distribution;
+              return (
+                <button
+                  key={distribution}
+                  type="button"
+                  className={cn(
+                    'rounded-lg border px-2 py-1 transition-colors',
+                    active
+                      ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                      : 'border-zinc-800 text-zinc-400 hover:border-emerald-500/40 hover:text-emerald-200',
+                  )}
+                  onClick={() => onUpdateScenario({ serviceDistribution: distribution })}
+                >
+                  {distribution === 'deterministic' && 'Deterministic'}
+                  {distribution === 'lognormal' && 'Lognormal'}
+                  {distribution === 'gamma' && 'Gamma'}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-zinc-500">
+            μ/σ apply to a 4 KiB CRC and scale with chunk size. Deterministic mode ignores σ.
+          </p>
+        </div>
+        <NumberSlider
+          id="crcMean"
+          label="μ per 4 KiB"
+          value={draftScenario.crcPer4kUs}
+          min={10}
+          max={400}
+          step={1}
+          unit="µs"
+          onChange={(value) => onUpdateScenario({ crcPer4kUs: value })}
+          helper="Average service time for a 4 KiB CRC."
+        />
+        <NumberSlider
+          id="crcSigma"
+          label="σ per 4 KiB"
+          value={draftScenario.crcSigmaPer4kUs}
+          min={0}
+          max={200}
+          step={1}
+          unit="µs"
+          onChange={(value) => onUpdateScenario({ crcSigmaPer4kUs: value })}
+          helper="Jitter width. Zero collapses to deterministic timing."
+        />
+        <NumberSlider
+          id="straggler95"
+          label="p95 multiplier"
+          value={draftScenario.stragglerP95Multiplier}
+          min={1}
+          max={5}
+          step={0.1}
+          onChange={(value) => onUpdateScenario({ stragglerP95Multiplier: value })}
+          helper="Amplify the 95th percentile to model moderate stragglers."
+        />
+        <NumberSlider
+          id="straggler99"
+          label="p99 multiplier"
+          value={draftScenario.stragglerP99Multiplier}
+          min={1}
+          max={10}
+          step={0.1}
+          onChange={(value) => onUpdateScenario({ stragglerP99Multiplier: value })}
+          helper="Extreme stragglers beyond the 99th percentile."
+        />
       </Section>
 
       <Section title="Compute & Aggregation">
@@ -352,7 +466,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               label="d0 (base)"
               value={draftScenario.ssdCoefficients.d0}
               min={0}
-              max={100}
+              max={150}
               step={0.5}
               unit="µs"
               onChange={(value) => onUpdateSsdCoefficient('d0', value)}
@@ -369,7 +483,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
               unit="µs"
               onChange={(value) => onUpdateSsdCoefficient('d1', value)}
               highlight={draftScenario.solution === 's3'}
-              helper="Per-stripe combine work on SSD ARM cores; raise to model slower device compute."
+              helper="Per-stripe combine work on SSD cores."
             />
           </div>
 
@@ -410,16 +524,74 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
         </div>
       </Section>
 
-      <Section title="Failures & Jitter" disabled tooltip="Phase 3 introduces jitter, stragglers, and retry modeling.">
-        <p className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-[11px] text-zinc-500">
-          Deterministic run. Failure knobs unlock with stochastic engine.
-        </p>
+      <Section title="Failures & Retry">
+        <NumberSlider
+          id="failureProbability"
+          label="Timeout probability"
+          value={draftScenario.failureProbability}
+          min={0}
+          max={0.05}
+          step={0.0005}
+          onChange={(value) => onUpdateScenario({ failureProbability: value })}
+          helper="Chance an NVMe CRC command times out and is retried."
+          formatValue={(value) => `${(value * 100).toFixed(2)}%`}
+        />
+        <div className="space-y-2">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Retry Policy</div>
+          <div className="grid grid-cols-2 gap-2 text-[11px]">
+            {(['fixed', 'exponential'] as RetryPolicy[]).map((policy) => {
+              const active = draftScenario.retryPolicy === policy;
+              return (
+                <button
+                  key={policy}
+                  type="button"
+                  className={cn(
+                    'rounded-lg border px-2 py-1 transition-colors',
+                    active
+                      ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
+                      : 'border-zinc-800 text-zinc-400 hover:border-amber-500/40 hover:text-amber-200',
+                  )}
+                  onClick={() => onUpdateScenario({ retryPolicy: policy })}
+                >
+                  {policy === 'fixed' ? 'Fixed Backoff' : 'Exponential'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <NumberSlider
+          id="retryBackoff"
+          label="Retry backoff"
+          value={draftScenario.retryBackoffUs}
+          min={0}
+          max={2000}
+          step={10}
+          unit="µs"
+          onChange={(value) => onUpdateScenario({ retryBackoffUs: value })}
+        />
+        <NumberSlider
+          id="retryMax"
+          label="Max attempts"
+          value={draftScenario.retryMaxAttempts}
+          min={1}
+          max={8}
+          step={1}
+          onChange={(value) => onUpdateScenario({ retryMaxAttempts: value })}
+          helper="Simulation forces success on the last attempt to model host fallback."
+        />
       </Section>
 
-      <Section title="Calibration" disabled tooltip="Phase 4 enables log-based calibration profiles.">
-        <p className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-[11px] text-zinc-500">
-          Use captured traces to align simulator with fleet telemetry.
-        </p>
+      <Section title="Simulation Control">
+        <NumberSlider
+          id="randomSeed"
+          label="Random seed"
+          value={draftScenario.randomSeed}
+          min={1}
+          max={1_000_000}
+          step={1}
+          onChange={(value) => onUpdateScenario({ randomSeed: value })}
+          helper="Use the same seed to reproduce stochastic runs."
+        />
       </Section>
 
       <Section title="Presets">
@@ -434,9 +606,10 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   );
 };
 
-
 export interface EnterpriseResultsProps {
+  mode: EnterpriseMode;
   result: SimulationResult;
+  compareResults?: SimulationResult[];
   draftScenario: EnterpriseScenario;
   showCritical: boolean;
   onToggleCritical: () => void;
@@ -480,13 +653,21 @@ const renderAggregationTree = (tree: AggregationTree): React.ReactNode => {
   );
 };
 
-export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
-  result,
+interface EnterpriseCompareResultsProps {
+  results: SimulationResult[];
+  draftScenario: EnterpriseScenario;
+  onRun: () => void;
+  onExportScenario: () => void;
+  onExportResults: () => void;
+  onImportClick: () => void;
+  importError: string | null;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
+  results,
   draftScenario,
-  showCritical,
-  onToggleCritical,
-  eventsOpen,
-  onToggleEvents,
   onRun,
   onExportScenario,
   onExportResults,
@@ -495,24 +676,23 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
   fileInputRef,
   onImportFile,
 }) => {
-  const total = result.derived.totalLatencyUs || 1;
-  const solution = result.scenario.solution;
-  const solutionMeta = SOLUTION_META[solution];
-  const aggregationLabel = AGGREGATION_LOCATION_LABEL[result.derived.aggregatorLocation];
-  const aggregatorPolicyLabel = solution === 's3' ? AGGREGATOR_POLICY_META[result.scenario.aggregatorPolicy] : null;
-  const hasPipelineEstimates =
-    typeof result.derived.pipelineFillUs === 'number' && typeof result.derived.steadyStateUs === 'number';
+  const sorted = [...results].sort((a, b) => a.kpis.p99Us - b.kpis.p99Us);
+  const bestP99 = sorted.length > 0 ? sorted[0].kpis.p99Us : 0;
+  const bestLatency = sorted.length > 0 ? Math.min(...sorted.map((item) => item.kpis.latencyUs)) : 0;
+  const bestThroughput = sorted.length > 0 ? Math.max(...sorted.map((item) => item.kpis.throughputObjsPerSec)) : 0;
 
   return (
     <div className="flex h-full flex-col bg-[var(--bg)] text-zinc-100">
       <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/70 px-4 py-3">
         <div className="flex items-center gap-3">
           <span className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-[11px] font-medium tracking-wide uppercase text-zinc-300">
-            Single Solution
+            Compare Trio
           </span>
           <div>
-            <div className="text-xs font-semibold text-zinc-200">{solutionMeta.label}</div>
-            <div className="text-[11px] text-zinc-500">Phase 2 · Deterministic · {aggregationLabel}</div>
+            <div className="text-xs font-semibold text-zinc-200">All solutions · Phase 3 stochastic</div>
+            <div className="text-[11px] text-zinc-500">
+              Stripe {draftScenario.stripeWidth} · Objects {draftScenario.objectsInFlight} · Seed {draftScenario.randomSeed}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -532,7 +712,204 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
             onClick={onImportClick}
             className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
           >
-            Import JSON
+            Import Scenario
+          </button>
+          <input ref={fileInputRef} type="file" accept=".json" hidden onChange={onImportFile} />
+          <button
+            onClick={onRun}
+            className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30"
+          >
+            Run Comparison
+          </button>
+        </div>
+      </div>
+
+      {importError && (
+        <div className="border-b border-rose-500/60 bg-rose-500/10 px-4 py-2 text-xs text-rose-200">
+          {importError}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto">
+        <div className="grid gap-4 p-6 lg:grid-cols-3">
+          {sorted.map((item) => {
+            const meta = SOLUTION_META[item.scenario.solution];
+            const aggregationLabel = AGGREGATION_LOCATION_LABEL[item.derived.aggregatorLocation];
+            const deltaP99 = item.kpis.p99Us - bestP99;
+            const deltaLatency = item.kpis.latencyUs - bestLatency;
+            const deltaThroughput = bestThroughput > 0
+              ? ((item.kpis.throughputObjsPerSec - bestThroughput) / bestThroughput) * 100
+              : 0;
+            const ratio = bestP99 > 0 ? item.kpis.p99Us / bestP99 : 1;
+
+            return (
+              <div
+                key={item.scenario.solution}
+                className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-zinc-200">{meta.label}</div>
+                    <div className="text-[11px] text-zinc-500">{meta.summary}</div>
+                  </div>
+                  <span className="rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                    {aggregationLabel}
+                  </span>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-zinc-500">p99 latency</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-semibold text-zinc-100">{formatMicros(item.kpis.p99Us)}</span>
+                    <span className={cn('text-[11px]', deltaP99 <= 0 ? 'text-emerald-300' : 'text-rose-300')}>
+                      {deltaP99 <= 0 ? 'best' : `+${formatMicros(deltaP99)}`}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-zinc-800">
+                    <div
+                      className={cn(
+                        'h-full rounded',
+                        ratio <= 1.05 ? 'bg-emerald-400/80' : ratio <= 1.2 ? 'bg-amber-400/80' : 'bg-rose-400/80',
+                      )}
+                      style={{ width: `${Math.min(100, ratio * 100)}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-xs text-zinc-400">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">Latency (total)</div>
+                    <div className="text-sm font-semibold text-zinc-100">{formatMicros(item.kpis.latencyUs)}</div>
+                    {deltaLatency > 0 && (
+                      <div className="text-[10px] text-rose-300">+{formatMicros(deltaLatency)}</div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">Throughput</div>
+                    <div className="text-sm font-semibold text-zinc-100">{formatObjectsPerSecond(item.kpis.throughputObjsPerSec)}</div>
+                    {deltaThroughput !== 0 && (
+                      <div className={cn('text-[10px]', deltaThroughput >= 0 ? 'text-emerald-300' : 'text-rose-300')}>
+                        {deltaThroughput >= 0 ? '+' : ''}{deltaThroughput.toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">Failures</div>
+                    <div className="text-sm font-semibold text-zinc-100">{item.derived.failures}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">Retries</div>
+                    <div className="text-sm font-semibold text-zinc-100">{item.derived.retries}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">Queue depth</div>
+                    <div className="text-sm font-semibold text-zinc-100">{item.scenario.queueDepth}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">Runbook entries</div>
+                    <div className="text-sm font-semibold text-zinc-100">{item.runbook.length}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
+  mode,
+  result,
+  compareResults,
+  draftScenario,
+  showCritical,
+  onToggleCritical,
+  eventsOpen,
+  onToggleEvents,
+  onRun,
+  onExportScenario,
+  onExportResults,
+  onImportClick,
+  importError,
+  fileInputRef,
+  onImportFile,
+}) => {
+  if (mode === 'compare') {
+    return (
+      <EnterpriseCompareResults
+        results={compareResults ?? []}
+        draftScenario={draftScenario}
+        onRun={onRun}
+        onExportScenario={onExportScenario}
+        onExportResults={onExportResults}
+        onImportClick={onImportClick}
+        importError={importError}
+        fileInputRef={fileInputRef}
+        onImportFile={onImportFile}
+      />
+    );
+  }
+
+  const total = result.derived.totalLatencyUs || 1;
+  const solution = result.scenario.solution;
+  const solutionMeta = SOLUTION_META[solution];
+  const aggregationLabel = AGGREGATION_LOCATION_LABEL[result.derived.aggregatorLocation];
+  const aggregatorPolicyLabel =
+    solution === 's3' ? AGGREGATOR_POLICY_META[result.scenario.aggregatorPolicy] : null;
+  const hasPipelineEstimates =
+    typeof result.derived.pipelineFillUs === 'number' && typeof result.derived.steadyStateUs === 'number';
+  const distributionDescriptor =
+    draftScenario.serviceDistribution === 'deterministic'
+      ? 'Deterministic μ only'
+      : `${draftScenario.serviceDistribution === 'lognormal' ? 'Lognormal' : 'Gamma'} μ=${draftScenario.crcPer4kUs.toFixed(0)} µs σ=${draftScenario.crcSigmaPer4kUs.toFixed(0)} µs`;
+
+  const metrics = [
+    { label: 'Latency p50', value: formatMicros(result.kpis.p50Us) },
+    { label: 'Latency p95', value: formatMicros(result.kpis.p95Us) },
+    { label: 'Latency p99', value: formatMicros(result.kpis.p99Us) },
+    { label: 'Throughput', value: formatObjectsPerSecond(result.kpis.throughputObjsPerSec) },
+  ];
+
+  const summaryChips = [
+    { label: 'Failures', value: String(result.derived.failures) },
+    { label: 'Retries', value: String(result.derived.retries) },
+    { label: 'Objects', value: String(result.derived.objectLatenciesUs.length) },
+    { label: 'Seed', value: `#${draftScenario.randomSeed}` },
+  ];
+
+  return (
+    <div className="flex h-full flex-col bg-[var(--bg)] text-zinc-100">
+      <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/70 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-[11px] font-medium tracking-wide uppercase text-zinc-300">
+            Single Solution
+          </span>
+          <div>
+            <div className="text-xs font-semibold text-zinc-200">{solutionMeta.label}</div>
+            <div className="text-[11px] text-zinc-500">
+              Phase 3 · {distributionDescriptor} · {aggregationLabel}
+              {aggregatorPolicyLabel ? ` · ${aggregatorPolicyLabel}` : ''}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onExportScenario}
+            className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Export Scenario JSON
+          </button>
+          <button
+            onClick={onExportResults}
+            className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Export Results CSV
+          </button>
+          <button
+            onClick={onImportClick}
+            className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Import Scenario
           </button>
           <button
             onClick={onToggleCritical}
@@ -545,7 +922,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
           </button>
           <button
             onClick={onRun}
-            className="rounded-full bg-sky-500 px-4 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-sky-400"
+            className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30"
           >
             Run Simulation
           </button>
@@ -553,7 +930,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
       </div>
 
       {importError && (
-        <div className="bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
+        <div className="border-b border-rose-500/60 bg-rose-500/10 px-4 py-2 text-xs text-rose-200">
           {importError}
         </div>
       )}
@@ -566,214 +943,216 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         onChange={onImportFile}
       />
 
-      <div className="grid gap-4 border-b border-zinc-900 bg-zinc-950/40 px-6 py-4 md:grid-cols-4">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Latency p50 / p95 / p99</div>
-          <div className="mt-2 text-2xl font-semibold text-zinc-100">{formatMicros(result.kpis.latencyUs)}</div>
-          <div className="text-xs text-zinc-500">Deterministic slice (Phase 2)</div>
-        </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Throughput</div>
-          <div className="mt-2 text-2xl font-semibold text-zinc-100">{formatObjectsPerSecond(result.kpis.throughputObjsPerSec)}</div>
-          <div className="text-xs text-zinc-500">Objects per second at computed latency</div>
-        </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 md:col-span-2">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Critical Path Breakdown</div>
-          <div className="mt-2 space-y-2">
-            {result.kpis.criticalPath.map((entry) => (
-              <div key={entry.label}>
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span>{entry.label}</span>
-                  <span>{entry.percent.toFixed(1)}%</span>
-                </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-zinc-800">
-                  <div
-                    className={cn(
-                      'h-full rounded-full bg-sky-500 transition-all duration-500',
-                      entry.label.toLowerCase().includes('host') && 'bg-amber-400',
-                      entry.label.toLowerCase().includes('ssd') && 'bg-emerald-500',
-                      entry.label.toLowerCase().includes('orchestration') && 'bg-purple-500',
-                      entry.label.toLowerCase().includes('serial') && 'bg-fuchsia-500',
-                    )}
-                    style={{ width: `${Math.min(100, entry.percent)}%` }}
-                  />
-                </div>
+      <div className="flex-1 overflow-auto">
+        <div className="space-y-6 px-6 py-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {metrics.map((metric) => (
+              <div key={metric.label} className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-4 shadow-sm">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500">{metric.label}</div>
+                <div className="mt-1 text-xl font-semibold text-zinc-100">{metric.value}</div>
               </div>
             ))}
           </div>
-        </div>
-      </div>
 
-      <div className="border-b border-zinc-900 bg-zinc-950/50 px-6 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-200">Aggregation Tree</h3>
-            <p className="text-xs text-zinc-500">{solutionMeta.description}</p>
-            {solution === 's3' && (
-              <p className="mt-1 text-[11px] text-amber-300">
-                Defaults assume ARM aggregation lags host CPUs — adjust <code>d0</code>/<code>d1</code> to explore faster firmware paths.
-              </p>
+          <div className="flex flex-wrap gap-2">
+            {summaryChips.map((chip) => (
+              <span
+                key={chip.label}
+                className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-[11px] font-medium text-zinc-300"
+              >
+                {chip.label}: {chip.value}
+              </span>
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30">
+            <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-3">
+              <div className="text-sm font-semibold">Timeline</div>
+              <div className="text-[11px] text-zinc-500">Horizon {formatMicros(total)}</div>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="space-y-3 px-6 py-4">
+                {result.lanes.map((lane) => {
+                  const emphasise = showCritical ? lane.isCritical : true;
+                  const laneTotal = lane.totalUs || total;
+                  return (
+                    <div key={lane.id} className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                        <span className="font-semibold text-zinc-200">{lane.label}</span>
+                        <span>{formatMicros(laneTotal)}</span>
+                      </div>
+                      <div className="relative h-8 rounded-lg border border-zinc-800 bg-zinc-950/60">
+                        {lane.segments.map((segment) => {
+                          const width = ((segment.endUs - segment.startUs) / laneTotal) * 100;
+                          const left = (segment.startUs / laneTotal) * 100;
+                          return (
+                            <div
+                              key={`${lane.id}-${segment.startUs}-${segment.endUs}-${segment.kind}-${segment.commandIndex}`}
+                              className={cn(
+                                'absolute top-1/2 flex -translate-y-1/2 items-center justify-center rounded px-2 text-[10px] transition-opacity',
+                                segmentColor(segment.kind as TimelineSegmentKind),
+                                emphasise ? 'opacity-100' : 'opacity-20',
+                              )}
+                              style={{
+                                width: `${Math.max(width, 0.6)}%`,
+                                left: `${left}%`,
+                              }}
+                              title={`${segment.label} (${formatMicros(segment.endUs - segment.startUs)})`}
+                            >
+                              <span className="truncate">{segment.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30">
+            <div className="border-b border-zinc-800/60 px-6 py-3 text-sm font-semibold">Queue Heatmap</div>
+            <div className="space-y-3 px-6 py-4">
+              {result.heatmap.map((lane) => {
+                const laneSamples = lane.samples;
+                const laneTotal = laneSamples.length > 0 ? laneSamples[laneSamples.length - 1].timeUs : total;
+                return (
+                  <div key={lane.id} className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                      <span className="font-semibold text-zinc-200">{lane.label}</span>
+                      <span>Peak occupancy {lane.peak}</span>
+                    </div>
+                    <div className="h-5 overflow-hidden rounded bg-zinc-950/60">
+                      <div className="flex h-full">
+                        {laneSamples.slice(0, -1).map((sample, index) => {
+                          const next = laneSamples[index + 1];
+                          const duration = Math.max(0, next.timeUs - sample.timeUs);
+                          const widthPercent = laneTotal > 0 ? (duration / laneTotal) * 100 : 0;
+                          const occupancy = sample.occupancy;
+                          const intensity = lane.peak > 0 ? occupancy / lane.peak : 0;
+                          const baseColor = lane.role === 'host' ? [56, 189, 248] : lane.role === 'aggregator' ? [251, 191, 36] : [34, 197, 94];
+                          const background = `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${0.15 + intensity * 0.7})`;
+                          return (
+                            <div
+                              key={`${lane.id}-heat-${index}`}
+                              style={{ width: `${widthPercent}%`, background }}
+                              title={`t=${formatMicros(sample.timeUs)} occupancy=${occupancy}`}
+                              className="h-full"
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30">
+              <div className="border-b border-zinc-800/60 px-6 py-3 text-sm font-semibold">Aggregation Tree</div>
+              <div className="px-6 py-4">{renderAggregationTree(result.aggregationTree)}</div>
+            </div>
+            <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30">
+              <div className="border-b border-zinc-800/60 px-6 py-3 text-sm font-semibold">Derived Parameters</div>
+              <div className="space-y-2 px-6 py-4 text-xs text-zinc-400">
+                <div className="flex items-center justify-between">
+                  <span>Total chunks</span>
+                  <span className="font-semibold text-zinc-200">{result.derived.totalChunks}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Stripes per object</span>
+                  <span className="font-semibold text-zinc-200">{result.derived.stripes}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Chunk bytes</span>
+                  <span className="font-semibold text-zinc-200">{(result.derived.chunkBytes / 1024).toFixed(0)} KiB</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Aggregation location</span>
+                  <span className="font-semibold text-zinc-200">{aggregationLabel}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Aggregator per stripe</span>
+                  <span className="font-semibold text-zinc-200">{formatMicros(result.derived.aggregatorPerStripeUs)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Aggregator total</span>
+                  <span className="font-semibold text-zinc-200">{formatMicros(result.derived.aggregatorTotalUs)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>SSD compute critical path</span>
+                  <span className="font-semibold text-zinc-200">{formatMicros(result.derived.ssdComputeCriticalPathUs)}</span>
+                </div>
+                {result.derived.ssdAggregateCriticalPathUs > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span>Aggregation critical path</span>
+                    <span className="font-semibold text-zinc-200">{formatMicros(result.derived.ssdAggregateCriticalPathUs)}</span>
+                  </div>
+                )}
+                {hasPipelineEstimates && (
+                  <div className="flex items-center justify-between">
+                    <span>Conservative serial latency</span>
+                    <span className="font-semibold text-zinc-200">
+                      {formatMicros(Math.max(result.derived.pipelineFillUs ?? 0, result.derived.steadyStateUs ?? 0))}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span>Queue depth</span>
+                  <span className="font-semibold text-zinc-200">{draftScenario.queueDepth}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30">
+            <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-3">
+              <div className="text-sm font-semibold">Event Log & Failure Runbook</div>
+              <button
+                onClick={onToggleEvents}
+                className="text-[11px] font-medium text-sky-300 hover:text-sky-200"
+              >
+                {eventsOpen ? 'Hide details' : 'Show details'}
+              </button>
+            </div>
+            {eventsOpen && (
+              <div className="grid gap-4 px-6 py-4 lg:grid-cols-2">
+                <div className="space-y-2 rounded-lg border border-zinc-900 bg-zinc-950/40 p-3 text-xs text-zinc-400">
+                  {result.events.map((event) => (
+                    <div
+                      key={`${event.timeUs}-${event.message}`}
+                      className={cn('flex items-start gap-2', event.type === 'warning' && 'text-amber-300')}
+                    >
+                      <span className="font-mono text-[10px] text-zinc-500">{formatMicros(event.timeUs)}</span>
+                      <span>{event.message}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2 rounded-lg border border-zinc-900 bg-zinc-950/40 p-3 text-xs text-zinc-400">
+                  {result.runbook.length === 0 ? (
+                    <div className="text-zinc-500">No retry events captured for this run.</div>
+                  ) : (
+                    result.runbook.map((entry) => (
+                      <div key={entry.id} className="flex flex-col border-b border-zinc-800/40 pb-2 last:border-none last:pb-0">
+                        <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                          <span>{formatMicros(entry.timeUs)}</span>
+                          <span>
+                            SSD {entry.laneId.replace('ssd-', '')} · Obj {entry.objectIndex + 1} · Attempt {entry.attempt}
+                          </span>
+                        </div>
+                        <div className="text-zinc-200">{entry.message}</div>
+                        <div className="text-[10px] text-zinc-500">Delay {formatMicros(entry.retryDelayUs)} · Added {formatMicros(entry.additionalLatencyUs)}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             )}
           </div>
-          <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-            <span>Total {formatMicros(result.aggregationTree.totalUs)}</span>
-            {aggregatorPolicyLabel && <span>Policy · {aggregatorPolicyLabel}</span>}
-          </div>
         </div>
-        <div className="mt-3">{renderAggregationTree(result.aggregationTree)}</div>
-        {hasPipelineEstimates && (
-          <div className="mt-3 grid gap-2 text-[11px] text-zinc-400 md:grid-cols-2">
-            <div className="rounded border border-zinc-900 bg-zinc-950/30 p-2">
-              <div className="font-semibold uppercase tracking-wide text-zinc-500">Pipeline fill</div>
-              <div className="mt-1 text-sm text-zinc-100">{formatMicros(result.derived.pipelineFillUs ?? 0)}</div>
-              <div className="text-[10px] text-zinc-500">Time to seed across the stripe once.</div>
-            </div>
-            <div className="rounded border border-zinc-900 bg-zinc-950/30 p-2">
-              <div className="font-semibold uppercase tracking-wide text-zinc-500">Steady state</div>
-              <div className="mt-1 text-sm text-zinc-100">{formatMicros(result.derived.steadyStateUs ?? 0)}</div>
-              <div className="text-[10px] text-zinc-500">Per-object latency in the filled pipeline.</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-auto px-6 py-4">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-zinc-200">Timeline (Gantt)</h3>
-              <p className="text-xs text-zinc-500">One lane per SSD plus host validation lane.</p>
-            </div>
-            <div className="rounded-full border border-zinc-800 px-3 py-1 text-[11px] text-zinc-500">
-              Object latency {formatMicros(result.derived.totalLatencyUs)}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {result.lanes.map((lane) => {
-              const isHost = lane.role === 'host';
-              const emphasise = !showCritical || lane.isCritical || isHost;
-              return (
-                <div key={lane.id} className="space-y-2 rounded-lg border border-zinc-900 bg-zinc-950/30 p-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          'rounded px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase',
-                          isHost ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/20 text-emerald-200',
-                        )}
-                      >
-                        {lane.label}
-                      </span>
-                      {lane.isCritical && !isHost && (
-                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">
-                          Critical
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-zinc-500">{formatMicros(lane.totalUs)}</span>
-                  </div>
-                  <div className="relative h-12 overflow-hidden rounded-md border border-zinc-900 bg-zinc-950">
-                    {lane.segments.map((segment) => {
-                      const width = ((segment.endUs - segment.startUs) / total) * 100;
-                      const left = (segment.startUs / total) * 100;
-                      return (
-                        <div
-                          key={`${lane.id}-${segment.startUs}-${segment.endUs}-${segment.kind}-${segment.commandIndex}`}
-                          className={cn(
-                            'absolute top-1/2 flex -translate-y-1/2 items-center justify-center rounded px-2 text-[10px] transition-opacity',
-                            segmentColor(segment.kind),
-                            emphasise ? 'opacity-100' : 'opacity-20',
-                          )}
-                          style={{
-                            width: `${Math.max(width, 0.6)}%`,
-                            left: `${left}%`,
-                          }}
-                          title={`${segment.label} (${formatMicros(segment.endUs - segment.startUs)})`}
-                        >
-                          <span className="truncate">{segment.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-zinc-900 bg-zinc-950/40 px-6 py-3">
-        <button
-          onClick={onToggleEvents}
-          className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-zinc-400"
-        >
-          <span>Event Log & Derived Parameters</span>
-          <span>{eventsOpen ? '▾' : '▸'}</span>
-        </button>
-        {eventsOpen && (
-          <div className="mt-3 grid gap-4 md:grid-cols-2">
-            <div className="space-y-2 rounded-lg border border-zinc-900 bg-zinc-950/30 p-3 text-xs text-zinc-400">
-              {result.events.map((event) => (
-                <div
-                  key={`${event.timeUs}-${event.message}`}
-                  className={cn('flex items-start gap-2', event.type === 'warning' && 'text-amber-300')}
-                >
-                  <span className="font-mono text-[10px] text-zinc-500">{formatMicros(event.timeUs)}</span>
-                  <span>{event.message}</span>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2 rounded-lg border border-zinc-900 bg-zinc-950/30 p-3 text-xs text-zinc-400">
-              <div className="flex items-center justify-between">
-                <span>Total chunks</span>
-                <span className="font-semibold text-zinc-200">{result.derived.totalChunks}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Stripes per object</span>
-                <span className="font-semibold text-zinc-200">{result.derived.stripes}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Chunk bytes</span>
-                <span className="font-semibold text-zinc-200">{(result.derived.chunkBytes / 1024).toFixed(0)} KiB</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Aggregation location</span>
-                <span className="font-semibold text-zinc-200">{aggregationLabel}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Aggregator per stripe</span>
-                <span className="font-semibold text-zinc-200">{formatMicros(result.derived.aggregatorPerStripeUs)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Aggregator total</span>
-                <span className="font-semibold text-zinc-200">{formatMicros(result.derived.aggregatorTotalUs)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>SSD compute critical path</span>
-                <span className="font-semibold text-zinc-200">{formatMicros(result.derived.ssdComputeCriticalPathUs)}</span>
-              </div>
-              {result.derived.ssdAggregateCriticalPathUs > 0 && (
-                <div className="flex items-center justify-between">
-                  <span>Aggregation critical path</span>
-                  <span className="font-semibold text-zinc-200">{formatMicros(result.derived.ssdAggregateCriticalPathUs)}</span>
-                </div>
-              )}
-              {hasPipelineEstimates && (
-                <div className="flex items-center justify-between">
-                  <span>Conservative serial latency</span>
-                  <span className="font-semibold text-zinc-200">
-                    {formatMicros(Math.max(result.derived.pipelineFillUs ?? 0, result.derived.steadyStateUs ?? 0))}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span>Queue depth</span>
-                <span className="font-semibold text-zinc-200">{draftScenario.queueDepth}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

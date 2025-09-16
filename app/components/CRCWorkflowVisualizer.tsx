@@ -8,13 +8,13 @@ import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram
 import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
 import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/EnhancedTooltip';
 import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
-import { EnterpriseSidebar, EnterpriseResults, computeMdtsSegments } from '@/app/components/enterprise/EnterpriseTab';
+import { EnterpriseSidebar, EnterpriseResults, computeMdtsSegments, EnterpriseMode } from '@/app/components/enterprise/EnterpriseTab';
 import {
-  ENTERPRISE_PHASE2_PRESET,
+  ENTERPRISE_PHASE3_PRESET,
   EnterpriseScenario,
   simulateEnterprise,
   AggregationLocation,
-} from '@/lib/enterprise/phase2';
+} from '@/lib/enterprise/phase3';
 import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Voice } from '@/voice/voice-asst';
@@ -48,8 +48,9 @@ export default function CRCWorkflowVisualizer() {
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'throughput' | 'cpu'>('latency');
   const [currentStage, setCurrentStage] = useState<string>('Ready');
   const [animationProgress, setAnimationProgress] = useState(100); 
-  const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE2_PRESET);
-  const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE2_PRESET);
+  const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE3_PRESET);
+  const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE3_PRESET);
+  const [enterpriseMode, setEnterpriseMode] = useState<EnterpriseMode>('single');
   const [enterpriseShowCritical, setEnterpriseShowCritical] = useState(false);
   const [enterpriseEventsOpen, setEnterpriseEventsOpen] = useState(false);
   const [enterpriseImportError, setEnterpriseImportError] = useState<string | null>(null);
@@ -103,6 +104,17 @@ export default function CRCWorkflowVisualizer() {
     () => simulateEnterprise(enterpriseCommittedScenario),
     [enterpriseCommittedScenario]
   );
+  const enterpriseCompareResults = useMemo(() => {
+    if (enterpriseMode !== 'compare') {
+      return undefined;
+    }
+    return (['s1', 's2', 's3'] as EnterpriseSolution[]).map((solution) =>
+      simulateEnterprise({
+        ...cloneEnterpriseScenario(enterpriseCommittedScenario),
+        solution,
+      }),
+    );
+  }, [cloneEnterpriseScenario, enterpriseCommittedScenario, enterpriseMode]);
   const enterpriseMdtsSegments = useMemo(
     () => computeMdtsSegments(enterpriseDraftScenario),
     [enterpriseDraftScenario]
@@ -116,9 +128,9 @@ export default function CRCWorkflowVisualizer() {
 
   const loadEnterprisePreset = useCallback(() => {
     setEnterpriseImportError(null);
-    const presetDraft = cloneEnterpriseScenario(ENTERPRISE_PHASE2_PRESET);
+    const presetDraft = cloneEnterpriseScenario(ENTERPRISE_PHASE3_PRESET);
     setEnterpriseDraftScenario(presetDraft);
-    setEnterpriseCommittedScenario(cloneEnterpriseScenario(ENTERPRISE_PHASE2_PRESET));
+    setEnterpriseCommittedScenario(cloneEnterpriseScenario(ENTERPRISE_PHASE3_PRESET));
   }, [cloneEnterpriseScenario]);
 
   const updateEnterpriseScenario = useCallback((update: Partial<EnterpriseScenario>) => {
@@ -188,10 +200,17 @@ export default function CRCWorkflowVisualizer() {
     lines.push('KPIs');
     const kpiRows: Array<[string, string]> = [
       ['Solution', ENTERPRISE_SOLUTION_LABELS[scenario.solution]],
+      ['Mode', enterpriseMode === 'compare' ? 'Compare' : 'Single'],
       ['Aggregation Location', ENTERPRISE_AGGREGATION_LABELS[derived.aggregatorLocation]],
-      ['Latency_us', kpis.latencyUs.toFixed(3)],
+      ['Latency_total_us', kpis.latencyUs.toFixed(3)],
+      ['Latency_p50_us', kpis.p50Us.toFixed(3)],
+      ['Latency_p95_us', kpis.p95Us.toFixed(3)],
+      ['Latency_p99_us', kpis.p99Us.toFixed(3)],
       ['Throughput_objs_per_s', kpis.throughputObjsPerSec.toFixed(3)],
-      ['Total_Latency_us', derived.totalLatencyUs.toFixed(3)],
+      ['Fail_Count', derived.failures.toString()],
+      ['Retry_Count', derived.retries.toString()],
+      ['Objects', derived.objectLatenciesUs.length.toString()],
+      ['Random_Seed', derived.randomSeed.toString()],
       ['Aggregator_Total_us', derived.aggregatorTotalUs.toFixed(3)],
       ['Aggregator_Per_Stripe_us', derived.aggregatorPerStripeUs.toFixed(3)],
     ];
@@ -271,7 +290,7 @@ export default function CRCWorkflowVisualizer() {
       URL.revokeObjectURL(url);
       link.remove();
     }, 0);
-  }, [enterpriseResult]);
+  }, [enterpriseResult, enterpriseMode]);
 
   const importEnterpriseScenarioClick = useCallback(() => {
     setEnterpriseImportError(null);
@@ -791,6 +810,8 @@ export default function CRCWorkflowVisualizer() {
               onUpdateHostCoefficient={updateEnterpriseHostCoefficient}
               onUpdateSsdCoefficient={updateEnterpriseSsdCoefficient}
               onPreset={loadEnterprisePreset}
+              mode={enterpriseMode}
+              onModeChange={setEnterpriseMode}
             />
           </motion.div>
         ) : state.viewMode !== 'ai' ? (
@@ -1074,7 +1095,9 @@ export default function CRCWorkflowVisualizer() {
                   className="h-full overflow-hidden"
                 >
                   <EnterpriseResults
+                    mode={enterpriseMode}
                     result={enterpriseResult}
+                    compareResults={enterpriseCompareResults}
                     draftScenario={enterpriseDraftScenario}
                     showCritical={enterpriseShowCritical}
                     onToggleCritical={() => setEnterpriseShowCritical((prev) => !prev)}
