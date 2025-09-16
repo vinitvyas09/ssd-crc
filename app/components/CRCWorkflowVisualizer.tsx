@@ -40,6 +40,44 @@ import { Voice } from '@/voice/voice-asst';
 
 type ViewMode = 'single' | 'compare' | 'timeline';
 
+const createShuffleRng = (seed: number): (() => number) => {
+  let state = seed >>> 0;
+  return () => {
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const shuffleDeterministic = <T,>(input: T[], seed: number): T[] => {
+  const array = [...input];
+  const rng = createShuffleRng(seed);
+  for (let index = array.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    const tmp = array[index];
+    array[index] = array[swapIndex];
+    array[swapIndex] = tmp;
+  }
+  return array;
+};
+
+const arraysEqual = (a?: number[], b?: number[]): boolean => {
+  if (!a || !b) {
+    return (!a || a.length === 0) && (!b || b.length === 0);
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let index = 0; index < a.length; index++) {
+    if (a[index] !== b[index]) {
+      return false;
+    }
+  }
+  return true;
+};
+
 const ENTERPRISE_SOLUTION_LABELS: Record<EnterpriseScenario['solution'], string> = {
   s1: 'S1 · Serial (Seeded)',
   s2: 'S2 · Parallel + Host Aggregation',
@@ -94,6 +132,32 @@ export default function CRCWorkflowVisualizer() {
   const [calibrationWarnings, setCalibrationWarnings] = useState<string[]>([]);
   const [calibrationImportError, setCalibrationImportError] = useState<string | null>(null);
   const [enterpriseActivePresetId, setEnterpriseActivePresetId] = useState<string>('baseline');
+
+  const distributionStripeMap = useMemo(() => {
+    const width = Math.max(1, Math.round(state.W));
+    const shardSize = Math.max(state.shardSizeGB, 0.001);
+    const totalShards = Math.max(1, Math.ceil(state.objectSizeGB / shardSize));
+    const chunkBytes = Math.max(512, state.chunkBytes);
+    const bytesPerShard = shardSize * 1024 * 1024 * 1024;
+    const chunksPerShard = Math.max(1, Math.ceil(bytesPerShard / chunkBytes));
+    const shardsToEncode = Math.min(totalShards, width);
+    const lanePattern = Array.from({ length: width }, (_, index) => index);
+    if (state.randomize && lanePattern.length > 1) {
+      const seed = Math.floor(state.objectSizeGB * 1000 + state.chunkBytes + state.segments * 17 + state.shardSizeGB * 13);
+      const shuffled = shuffleDeterministic(lanePattern, seed);
+      lanePattern.splice(0, lanePattern.length, ...shuffled);
+    }
+    const map: number[] = [];
+    for (let shard = 0; shard < shardsToEncode; shard++) {
+      const lane = lanePattern[shard % lanePattern.length];
+      for (let chunk = 0; chunk < chunksPerShard; chunk++) {
+        map.push(lane);
+      }
+    }
+    return map;
+  }, [state.W, state.objectSizeGB, state.shardSizeGB, state.chunkBytes, state.segments, state.randomize]);
+  const stripeMapAvailable = distributionStripeMap.length > 0;
+  const distributionStripeWidth = Math.max(1, Math.round(state.W));
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -191,15 +255,36 @@ export default function CRCWorkflowVisualizer() {
     if (scenario.objectsInFlight > scenario.stripeWidth && scenario.queueDepth <= 2) {
       warnings.push('Low queue depth with many objects – SSD lanes may starve; increase queue depth.');
     }
-    const readNlb = scenario.calibration?.readNlb ?? 1;
+    if (scenario.stripeMapSource === 'imported') {
+      if (!stripeMapAvailable || distributionStripeMap.length === 0) {
+        errors.push('Stripe map import selected but Data Distribution has no map available.');
+      } else if (!scenario.stripeAssignments || scenario.stripeAssignments.length === 0) {
+        errors.push('Stripe map import selected but no assignments were imported.');
+      } else if (!arraysEqual(scenario.stripeAssignments, distributionStripeMap)) {
+        warnings.push('Imported stripe map differs from current Data Distribution view; simulator uses last imported pattern.');
+      }
+      if (distributionStripeWidth !== scenario.stripeWidth) {
+        warnings.push(
+          `Stripe width ${scenario.stripeWidth}× differs from Data Distribution ${distributionStripeWidth}×; imported pattern will repeat to cover lanes.`,
+        );
+      }
+    }
+    const readNlb = scenario.readNlb ?? 1;
     const perCommandKiB = readNlb * 4;
     if (perCommandKiB > mdtsKiB) {
       errors.push(
-        `Calibration read+NLB ${readNlb} implies ${perCommandKiB.toFixed(0)} KiB commands beyond MDTS ${mdtsKiB.toFixed(0)} KiB.`,
+        `Read+NLB ${readNlb} issues ${perCommandKiB.toFixed(0)} KiB commands beyond MDTS ${mdtsKiB.toFixed(0)} KiB.`,
       );
     }
     return { warnings, errors };
-  }, [enterpriseDraftScenario, enterpriseMdtsClamp, enterpriseMdtsSegments]);
+  }, [
+    distributionStripeMap,
+    distributionStripeWidth,
+    enterpriseDraftScenario,
+    enterpriseMdtsClamp,
+    enterpriseMdtsSegments,
+    stripeMapAvailable,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -329,50 +414,81 @@ export default function CRCWorkflowVisualizer() {
 
   const updateEnterpriseScenario = useCallback((update: Partial<EnterpriseScenario>) => {
     setEnterpriseImportError(null);
-    setEnterpriseDraftScenario((prev) => ({
-      ...prev,
-      ...update,
-      hostCoefficients: update.hostCoefficients
-        ? { ...prev.hostCoefficients, ...update.hostCoefficients }
-        : prev.hostCoefficients,
-      ssdCoefficients: update.ssdCoefficients
-        ? { ...prev.ssdCoefficients, ...update.ssdCoefficients }
-        : prev.ssdCoefficients,
-      calibration:
-        Object.prototype.hasOwnProperty.call(update, 'calibration')
-          ? update.calibration
-            ? {
-                ...(prev.calibration ?? {}),
-                ...update.calibration,
-                hostCoefficients: update.calibration.hostCoefficients
-                  ? {
-                      ...(prev.calibration?.hostCoefficients ?? {}),
-                      ...update.calibration.hostCoefficients,
-                    }
-                  : update.calibration.hostCoefficients === undefined
-                    ? prev.calibration?.hostCoefficients
-                    : undefined,
-                ssdCoefficients: update.calibration.ssdCoefficients
-                  ? {
-                      ...(prev.calibration?.ssdCoefficients ?? {}),
-                      ...update.calibration.ssdCoefficients,
-                    }
-                  : update.calibration.ssdCoefficients === undefined
-                    ? prev.calibration?.ssdCoefficients
-                    : undefined,
-                warnings: update.calibration.warnings
-                  ? [...update.calibration.warnings]
-                  : prev.calibration?.warnings
-                    ? [...prev.calibration.warnings]
-                    : undefined,
-              }
-            : undefined
-          : prev.calibration,
-    }));
+    setEnterpriseDraftScenario((prev) => {
+      const next: EnterpriseScenario = {
+        ...prev,
+        ...update,
+        hostCoefficients: update.hostCoefficients
+          ? { ...prev.hostCoefficients, ...update.hostCoefficients }
+          : prev.hostCoefficients,
+        ssdCoefficients: update.ssdCoefficients
+          ? { ...prev.ssdCoefficients, ...update.ssdCoefficients }
+          : prev.ssdCoefficients,
+        calibration:
+          Object.prototype.hasOwnProperty.call(update, 'calibration')
+            ? update.calibration
+              ? {
+                  ...(prev.calibration ?? {}),
+                  ...update.calibration,
+                  hostCoefficients: update.calibration.hostCoefficients
+                    ? {
+                        ...(prev.calibration?.hostCoefficients ?? {}),
+                        ...update.calibration.hostCoefficients,
+                      }
+                    : update.calibration.hostCoefficients === undefined
+                      ? prev.calibration?.hostCoefficients
+                      : undefined,
+                  ssdCoefficients: update.calibration.ssdCoefficients
+                    ? {
+                        ...(prev.calibration?.ssdCoefficients ?? {}),
+                        ...update.calibration.ssdCoefficients,
+                      }
+                    : update.calibration.ssdCoefficients === undefined
+                      ? prev.calibration?.ssdCoefficients
+                      : undefined,
+                  warnings: update.calibration.warnings
+                    ? [...update.calibration.warnings]
+                    : prev.calibration?.warnings
+                      ? [...prev.calibration.warnings]
+                      : undefined,
+                }
+              : undefined
+            : prev.calibration,
+      };
+      if (Object.prototype.hasOwnProperty.call(update, 'stripeAssignments')) {
+        next.stripeAssignments = update.stripeAssignments
+          ? [...update.stripeAssignments]
+          : undefined;
+      } else if (next.stripeMapSource === 'uniform') {
+        next.stripeAssignments = undefined;
+      } else if (next.stripeAssignments) {
+        next.stripeAssignments = [...next.stripeAssignments];
+      }
+      return next;
+    });
     setEnterpriseSweepRun(null);
     setEnterpriseSweepAdvisorHints([]);
     setEnterpriseActivePresetId('custom');
   }, []);
+
+  useEffect(() => {
+    if (enterpriseDraftScenario.stripeMapSource !== 'imported') {
+      return;
+    }
+    if (!stripeMapAvailable || distributionStripeMap.length === 0) {
+      updateEnterpriseScenario({ stripeMapSource: 'uniform', stripeAssignments: undefined });
+      return;
+    }
+    if (!arraysEqual(enterpriseDraftScenario.stripeAssignments, distributionStripeMap)) {
+      updateEnterpriseScenario({ stripeAssignments: distributionStripeMap });
+    }
+  }, [
+    distributionStripeMap,
+    enterpriseDraftScenario.stripeAssignments,
+    enterpriseDraftScenario.stripeMapSource,
+    stripeMapAvailable,
+    updateEnterpriseScenario,
+  ]);
 
   const updateEnterpriseHostCoefficient = useCallback((key: 'c0' | 'c1' | 'c2', value: number) => {
     setEnterpriseImportError(null);
@@ -674,6 +790,12 @@ export default function CRCWorkflowVisualizer() {
       ['Random_Seed', derived.randomSeed.toString()],
       ['Aggregator_Total_us', derived.aggregatorTotalUs.toFixed(3)],
       ['Aggregator_Per_Stripe_us', derived.aggregatorPerStripeUs.toFixed(3)],
+      ['Host_CPU_percent', derived.hostCpuPercent.toFixed(2)],
+      ['Control_msgs_per_object', derived.controlMessagesPerObject.toFixed(3)],
+      ['Control_msgs_total', derived.controlMessagesTotal.toFixed(0)],
+      ['Access_Order', (derived.accessOrder ?? scenario.accessOrder)],
+      ['Stripe_Map_Source', (derived.stripeMapSource ?? scenario.stripeMapSource)],
+      ['Read_plus_NLB', scenario.readNlb.toString()],
     ];
     if (typeof derived.pipelineFillUs === 'number') {
       kpiRows.push(['Pipeline_Fill_us', derived.pipelineFillUs.toFixed(3)]);
@@ -737,6 +859,18 @@ export default function CRCWorkflowVisualizer() {
         [event.timeUs.toFixed(3), event.type, event.message].map(escapeCsv).join(','),
       );
     });
+
+    if (derived.controlMessagesByLane.length > 0) {
+      lines.push('');
+      lines.push('Control Plane Messages');
+      lines.push(['Lane', 'Role', 'Messages_per_object'].map(escapeCsv).join(','));
+      derived.controlMessagesByLane.forEach((entry) => {
+        lines.push(
+          [entry.label, entry.role, entry.messages.toFixed(3)].map(escapeCsv).join(','),
+        );
+      });
+      lines.push(['Total', '', derived.controlMessagesPerObject.toFixed(3)].map(escapeCsv).join(','));
+    }
 
     const latencyDistribution = computeLatencyDistribution(derived.objectLatenciesUs, 24);
     if (latencyDistribution.bins.length > 0) {
@@ -1671,6 +1805,9 @@ export default function CRCWorkflowVisualizer() {
               draftScenario={enterpriseDraftScenario}
               mdtsSegments={enterpriseMdtsSegments}
               mdtsClamp={enterpriseMdtsClamp}
+              stripeMapAvailable={stripeMapAvailable}
+              stripeMapPreview={distributionStripeMap}
+              distributionStripeWidth={distributionStripeWidth}
               onUpdateScenario={updateEnterpriseScenario}
               onUpdateHostCoefficient={updateEnterpriseHostCoefficient}
               onUpdateSsdCoefficient={updateEnterpriseSsdCoefficient}
