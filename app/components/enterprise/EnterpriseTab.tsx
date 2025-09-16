@@ -8,6 +8,7 @@ import {
   EnterpriseSolution,
   AggregatorPolicy,
   AggregationLocation,
+  AccessOrder,
   TimelineSegmentKind,
   ServiceDistribution,
   RetryPolicy,
@@ -209,9 +210,16 @@ const LATENCY_HELP_TEXT: Record<EnterpriseSolution, string> = {
   s3: 'Latency = max SSD compute + SSD aggregator lane + orchestration. Aggregator policy drives queueing on the chosen SSD.',
 };
 
+const CRITICAL_PATH_FORMULA: Record<EnterpriseSolution, string> = {
+  s1: 'max(pipeline_fill, steady_state) + orchestration',
+  s2: 'max SSD compute + Agg_host(x) + orchestration',
+  s3: 'max SSD compute + Agg_ssd(x) + orchestration',
+};
+
 const AGGREGATOR_POLICY_META: Record<AggregatorPolicy, string> = {
   pinned: 'Pinned SSD',
   roundRobin: 'Round-robin',
+  leastLoaded: 'Least-loaded',
 };
 
 const AGGREGATION_LOCATION_LABEL: Record<AggregationLocation, string> = {
@@ -224,6 +232,9 @@ export interface EnterpriseSidebarProps {
   draftScenario: EnterpriseScenario;
   mdtsSegments: number;
   mdtsClamp: boolean;
+  stripeMapAvailable: boolean;
+  stripeMapPreview: number[];
+  distributionStripeWidth: number;
   onUpdateScenario: (update: Partial<EnterpriseScenario>) => void;
   onUpdateHostCoefficient: (key: 'c0' | 'c1' | 'c2', value: number) => void;
   onUpdateSsdCoefficient: (key: 'd0' | 'd1', value: number) => void;
@@ -260,6 +271,9 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   draftScenario,
   mdtsSegments,
   mdtsClamp,
+  stripeMapAvailable,
+  stripeMapPreview,
+  distributionStripeWidth,
   onUpdateScenario,
   onUpdateHostCoefficient,
   onUpdateSsdCoefficient,
@@ -301,6 +315,9 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
     : calibrationWarnings;
   const sweepDefinition = SWEEP_KNOB_DEFINITIONS[sweepConfig.knob];
   const sweepDisabled = mode !== 'sweep';
+  const mdtsKiB = draftScenario.mdtsBytes / 1024;
+  const readNlbKiB = draftScenario.readNlb * 4;
+  const readNlbInvalid = readNlbKiB > mdtsKiB;
   const clampSweepValue = (value: number, definition = sweepDefinition): number => {
     return Math.max(definition.min, Math.min(definition.max, value));
   };
@@ -479,6 +496,74 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
           onChange={(value) => onUpdateScenario({ objectsInFlight: value })}
           helper="Concurrent CRC validations sharing the SSD fleet."
         />
+        <div className="space-y-2 rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-zinc-300">Stripe Map Source</span>
+            {draftScenario.stripeMapSource === 'imported' && (
+              <span className="text-[10px] text-zinc-500">
+                {stripeMapPreview.length > 0
+                  ? `${stripeMapPreview.length} entries from Data Distribution`
+                  : 'No map imported'}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className={cn(
+                'rounded-lg border px-3 py-2 text-xs transition-colors',
+                draftScenario.stripeMapSource === 'uniform'
+                  ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                  : 'border-zinc-800 text-zinc-400 hover:border-emerald-500/40 hover:text-emerald-200',
+              )}
+              onClick={() => onUpdateScenario({ stripeMapSource: 'uniform', stripeAssignments: undefined })}
+            >
+              <div className="flex flex-col">
+                <span className="font-semibold">Uniform</span>
+                <span className="text-[10px] text-zinc-500">Round-robin lane mapping</span>
+              </div>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'rounded-lg border px-3 py-2 text-xs transition-colors',
+                draftScenario.stripeMapSource === 'imported'
+                  ? 'border-amber-500/60 bg-amber-500/10 text-amber-200'
+                  : 'border-zinc-800 text-zinc-400 hover:border-amber-500/40 hover:text-amber-200',
+                (!stripeMapAvailable || stripeMapPreview.length === 0) && 'cursor-not-allowed opacity-60 hover:border-zinc-800 hover:text-zinc-400',
+              )}
+              onClick={() => {
+                if (!stripeMapAvailable || stripeMapPreview.length === 0) {
+                  return;
+                }
+                onUpdateScenario({ stripeMapSource: 'imported', stripeAssignments: stripeMapPreview });
+              }}
+              disabled={!stripeMapAvailable || stripeMapPreview.length === 0}
+              title={!stripeMapAvailable || stripeMapPreview.length === 0 ? 'Open the Data Distribution tab to derive a stripe map.' : undefined}
+            >
+              <div className="flex flex-col">
+                <span className="font-semibold">Data Distribution</span>
+                <span className="text-[10px] text-zinc-500">Import mapping from Data Distribution</span>
+              </div>
+            </button>
+          </div>
+          {draftScenario.stripeMapSource === 'imported' && stripeMapPreview.length > 0 && (
+            <div className="rounded border border-zinc-800/50 bg-zinc-950/40 px-2 py-1 text-[10px] text-zinc-500">
+              Pattern (first 12): {stripeMapPreview.slice(0, 12).map((lane) => `SSD${lane}`).join(' → ')}
+              {stripeMapPreview.length > 12 ? ' …' : ''}
+            </div>
+          )}
+          {draftScenario.stripeMapSource === 'imported' && draftScenario.stripeWidth !== distributionStripeWidth && (
+            <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-200">
+              Data Distribution width is {distributionStripeWidth}×; simulator repeats pattern across {draftScenario.stripeWidth} lanes.
+            </div>
+          )}
+          {!stripeMapAvailable && draftScenario.stripeMapSource === 'imported' && (
+            <div className="rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] text-rose-200">
+              No stripe map detected from Data Distribution – defaulting to uniform mapping.
+            </div>
+          )}
+        </div>
       </Section>
 
       <Section title="Workload">
@@ -527,6 +612,19 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
             step={1}
             onChange={(value) => onUpdateScenario({ queueDepth: value })}
             helper="Outstanding NVMe CRC commands per SSD. Higher depth increases contention."
+          />
+          <NumberSlider
+            id="readNlb"
+            label="Read + NLB"
+            value={draftScenario.readNlb}
+            min={1}
+            max={4}
+            step={1}
+            onChange={(value) => onUpdateScenario({ readNlb: value })}
+            helper={readNlbInvalid
+              ? `Exceeds MDTS ${mdtsKiB.toFixed(0)} KiB — lower NLB or raise MDTS.`
+              : `Issuing ${readNlbKiB.toFixed(0)} KiB per command before MDTS splitting.`}
+            highlight={readNlbInvalid}
           />
           <div className="flex items-center justify-between">
             <span className="font-medium text-zinc-300">Threads</span>
@@ -715,12 +813,50 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
 
           <div className="space-y-2">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              Aggregator SSD Policy
+              Access Order
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {(['pinned', 'roundRobin'] as AggregatorPolicy[]).map((policy) => {
+              {(['stripe', 'randomized'] as AccessOrder[]).map((order) => {
+                const active = draftScenario.accessOrder === order;
+                return (
+                  <button
+                    key={order}
+                    type="button"
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-xs transition-colors',
+                      active
+                        ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
+                        : 'border-zinc-800 text-zinc-400 hover:border-sky-500/40 hover:text-sky-200',
+                    )}
+                    onClick={() => onUpdateScenario({ accessOrder: order })}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{order === 'stripe' ? 'Stripe order' : 'Randomized'}</span>
+                      <span className="text-[10px] text-zinc-500">
+                        {order === 'stripe'
+                          ? 'Submit stripes in deterministic lane order'
+                          : 'Shuffle per-stripe issue order per seed'}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              Aggregator SSD Policy
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {(['pinned', 'roundRobin', 'leastLoaded'] as AggregatorPolicy[]).map((policy) => {
                 const active = draftScenario.aggregatorPolicy === policy;
                 const disabled = draftScenario.solution !== 's3';
+                const helper = policy === 'pinned'
+                  ? 'Use SSD0 for combines'
+                  : policy === 'roundRobin'
+                    ? 'Rotate aggregator each stripe'
+                    : 'Pick SSD with the lowest combine cursor';
                 return (
                   <button
                     key={policy}
@@ -738,9 +874,7 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
                   >
                     <div className="flex flex-col">
                       <span className="font-semibold">{AGGREGATOR_POLICY_META[policy]}</span>
-                      <span className="text-[10px] text-zinc-500">
-                        {policy === 'pinned' ? 'Use SSD0 for combines' : 'Rotate aggregator each stripe'}
-                      </span>
+                      <span className="text-[10px] text-zinc-500">{helper}</span>
                     </div>
                   </button>
                 );
@@ -1276,6 +1410,14 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
                   <div>
                     <div className="text-[10px] uppercase tracking-wide">Runbook entries</div>
                     <div className="text-sm font-semibold text-zinc-100">{item.runbook.length}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">Host CPU</div>
+                    <div className="text-sm font-semibold text-zinc-100">{item.derived.hostCpuPercent.toFixed(1)}%</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide">PCIe msgs/obj</div>
+                    <div className="text-sm font-semibold text-zinc-100">{item.derived.controlMessagesPerObject.toFixed(1)}</div>
                   </div>
                   {confidenceSet && (
                     <div className="col-span-2 rounded-md border border-zinc-800/60 bg-zinc-900/40 px-3 py-2 text-[10px] text-zinc-400">
@@ -1814,7 +1956,19 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
     { label: 'Latency p95', value: result.kpis.p95Us, formatter: formatMicros, margin: confidence?.p95?.margin },
     { label: 'Latency p99', value: result.kpis.p99Us, formatter: formatMicros, margin: confidence?.p99?.margin },
     { label: 'Throughput', value: result.kpis.throughputObjsPerSec, formatter: formatObjectsPerSecond, margin: confidence?.throughput?.margin },
+    {
+      label: 'Host CPU (est.)',
+      value: result.derived.hostCpuPercent,
+      formatter: (value: number) => `${value.toFixed(1)} %`,
+    },
+    {
+      label: 'PCIe ctrl-plane',
+      value: result.derived.controlMessagesPerObject,
+      formatter: (value: number) => `${value.toFixed(1)} msgs/obj`,
+    },
   ];
+  const controlPlaneEntries = result.derived.controlMessagesByLane;
+  const controlPlaneMax = controlPlaneEntries.reduce((max, entry) => Math.max(max, entry.messages), 1);
 
   const summaryChips = [
     { label: 'Failures', value: String(result.derived.failures) },
@@ -1830,6 +1984,18 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
     });
   }
 
+  summaryChips.push({
+    label: 'Access',
+    value: draftScenario.accessOrder === 'randomized' ? 'Randomized' : 'Stripe order',
+  });
+  summaryChips.push({
+    label: 'Ctrl msgs total',
+    value: Math.round(result.derived.controlMessagesTotal).toLocaleString(),
+  });
+  if (draftScenario.stripeMapSource === 'imported') {
+    summaryChips.push({ label: 'Stripe map', value: 'Data Distribution' });
+  }
+
   return (
     <div className="flex h-full flex-col bg-[var(--bg)] text-zinc-100">
       <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/70 px-4 py-3">
@@ -1837,6 +2003,13 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
           <span className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-[11px] font-medium tracking-wide uppercase text-zinc-300">
             Single Solution
           </span>
+          <button
+            type="button"
+            className="rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] text-zinc-400 hover:border-sky-500/60 hover:text-sky-200"
+            title={`Critical path ≈ ${CRITICAL_PATH_FORMULA[solution]}`}
+          >
+            CP
+          </button>
           <div>
             <div className="text-xs font-semibold text-zinc-200">{solutionMeta.label}</div>
             <div className="text-[11px] text-zinc-500">
@@ -1904,11 +2077,11 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         </div>
       )}
 
-      {(validationErrors.length > 0 || validationWarnings.length > 0) && (
-        <div className="space-y-2 border-b border-zinc-800/60 bg-zinc-900/40 px-6 py-3 text-[11px]">
-          {validationErrors.length > 0 && (
-            <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-rose-200" role="alert">
-              {validationErrors.map((message) => (
+          {(validationErrors.length > 0 || validationWarnings.length > 0) && (
+            <div className="space-y-2 border-b border-zinc-800/60 bg-zinc-900/40 px-6 py-3 text-[11px]">
+              {validationErrors.length > 0 && (
+                <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-rose-200" role="alert">
+                  {validationErrors.map((message) => (
                 <div key={`single-error-${message}`}>{message}</div>
               ))}
             </div>
@@ -1962,10 +2135,36 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
                 key={chip.label}
                 className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-[11px] font-medium text-zinc-300"
               >
-                {chip.label}: {chip.value}
-              </span>
-            ))}
-          </div>
+              {chip.label}: {chip.value}
+            </span>
+          ))}
+        </div>
+
+          {controlPlaneEntries.length > 0 && (
+            <div className="space-y-2 rounded-xl border border-zinc-800/80 bg-zinc-900/30 p-4">
+              <div className="flex items-center justify-between text-sm font-semibold text-zinc-200">
+                <span>PCIe control-plane per object</span>
+                <span className="text-[10px] text-zinc-500">× {draftScenario.objectsInFlight} objects = {Math.round(result.derived.controlMessagesTotal).toLocaleString()} msgs</span>
+              </div>
+              <div className="space-y-2">
+                {controlPlaneEntries.map((entry) => {
+                  const widthPercent = Math.max(4, (entry.messages / controlPlaneMax) * 100);
+                  const roleColor = entry.role === 'aggregator' ? 'bg-amber-400/80' : entry.role === 'host' ? 'bg-purple-400/70' : 'bg-sky-500/80';
+                  return (
+                    <div key={entry.laneId} className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                        <span className="font-semibold text-zinc-200">{entry.label}</span>
+                        <span>{entry.messages.toFixed(1)} msgs</span>
+                      </div>
+                      <div className="h-2 rounded bg-zinc-800/80">
+                        <div className={cn('h-full rounded', roleColor)} style={{ width: `${Math.min(100, widthPercent)}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/30 px-4 py-3 text-xs text-zinc-400">
             <div className="text-[10px] uppercase tracking-wide text-zinc-500">How latency is computed</div>
@@ -2352,5 +2551,6 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
 export const computeMdtsSegments = (scenario: EnterpriseScenario): number => {
   const chunkBytes = scenario.chunkSizeKB * 1024;
   const mdts = Math.max(1, scenario.mdtsBytes);
-  return Math.max(1, Math.ceil(chunkBytes / mdts));
+  const commandBytes = Math.max(4096, Math.min(mdts, scenario.readNlb * 4096));
+  return Math.max(1, Math.ceil(chunkBytes / commandBytes));
 };
