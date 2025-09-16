@@ -17,8 +17,8 @@ import {
   CalibrationProfile,
   cloneEnterpriseScenario as deepCloneEnterpriseScenario,
   ENTERPRISE_PRESETS,
-} from '@/lib/enterprise/phase3';
-import type { TimelineSegment, ScenarioCalibration } from '@/lib/enterprise/phase3';
+} from '@/lib/enterprise';
+import type { TimelineSegment, ScenarioCalibration } from '@/lib/enterprise';
 import {
   runSweep,
   generateSweepAdvisor,
