@@ -22,6 +22,50 @@ export interface SsdCoefficients {
   d1: number;
 }
 
+export interface CalibrationProfile {
+  id: string;
+  label: string;
+  device?: string;
+  firmware?: string;
+  createdAt: string;
+  source: 'log' | 'manual' | 'imported';
+  muPer4kUs: number;
+  sigmaPer4kUs: number;
+  nvmeLatencyUs: number;
+  queueDepth?: number;
+  threads?: number;
+  readNlb?: number;
+  mdtsBytes?: number;
+  tolerancePercent?: number;
+  sampleCount: number;
+  hostCoefficients?: Partial<HostCoefficients>;
+  ssdCoefficients?: Partial<SsdCoefficients>;
+  notes?: string;
+  warnings?: string[];
+}
+
+export interface ScenarioCalibration {
+  profileId: string | null;
+  label?: string;
+  device?: string;
+  firmware?: string;
+  source?: string;
+  sampleCount?: number;
+  muPer4kUs?: number;
+  sigmaPer4kUs?: number;
+  nvmeLatencyUs?: number;
+  queueDepth?: number;
+  threads?: number;
+  readNlb?: number;
+  mdtsBytes?: number;
+  tolerancePercent?: number;
+  appliedAt?: string;
+  useProfileDefaults: boolean;
+  hostCoefficients?: Partial<HostCoefficients>;
+  ssdCoefficients?: Partial<SsdCoefficients>;
+  warnings?: string[];
+}
+
 export interface EnterpriseScenario {
   stripeWidth: number;
   objectsInFlight: number;
@@ -46,6 +90,7 @@ export interface EnterpriseScenario {
   solution: EnterpriseSolution;
   aggregatorPolicy: AggregatorPolicy;
   randomSeed: number;
+  calibration?: ScenarioCalibration;
 }
 
 export interface TimelineSegment {
@@ -79,6 +124,7 @@ export interface SimulationKPIs {
   p95Us: number;
   p99Us: number;
   criticalPath: KPIBreakdown[];
+  confidence?: KPIConfidenceSet;
 }
 
 export interface EventLogEntry {
@@ -119,6 +165,24 @@ export interface QueueHeatmapLane {
 
 export type AggregationLocation = 'serial' | 'host' | 'ssd';
 
+export interface KPIConfidenceInterval {
+  margin: number;
+  lower: number;
+  upper: number;
+}
+
+export interface KPIConfidenceSet {
+  confidenceLevel: number;
+  sampleCount: number;
+  objectCount: number;
+  source: 'calibration' | 'simulation';
+  p50?: KPIConfidenceInterval;
+  p95?: KPIConfidenceInterval;
+  p99?: KPIConfidenceInterval;
+  latency?: KPIConfidenceInterval;
+  throughput?: KPIConfidenceInterval;
+}
+
 export interface AggregationTreeStage {
   id: string;
   level: number;
@@ -155,6 +219,8 @@ export interface SimulationDerived {
   pipelineFillUs?: number;
   steadyStateUs?: number;
   aggregatorLocation: AggregationLocation;
+  commandsPerObject: number;
+  calibration?: SimulationCalibrationSummary;
 }
 
 export interface SimulationResult {
@@ -166,6 +232,21 @@ export interface SimulationResult {
   aggregationTree: AggregationTree;
   heatmap: QueueHeatmapLane[];
   runbook: RunbookEntry[];
+}
+
+export interface SimulationCalibrationSummary {
+  profileId: string | null;
+  label?: string;
+  device?: string;
+  firmware?: string;
+  source?: string;
+  sampleCount?: number;
+  tolerancePercent?: number;
+  warnings: string[];
+  applied: boolean;
+  useProfileDefaults: boolean;
+  muPer4kUs?: number;
+  sigmaPer4kUs?: number;
 }
 
 export const ENTERPRISE_PHASE3_PRESET: EnterpriseScenario = {
@@ -199,6 +280,13 @@ export const ENTERPRISE_PHASE3_PRESET: EnterpriseScenario = {
   solution: 's2',
   aggregatorPolicy: 'pinned',
   randomSeed: 1337,
+  calibration: {
+    profileId: null,
+    label: undefined,
+    useProfileDefaults: false,
+    tolerancePercent: 15,
+    warnings: [],
+  },
 };
 
 interface ChunkInfo {
@@ -368,13 +456,83 @@ const sampleServiceTime = (scenario: EnterpriseScenario, bytes: number, rng: () 
   return Math.max(sample, 1);
 };
 
+const normaliseHostCalibration = (
+  input?: Partial<HostCoefficients>,
+): Partial<HostCoefficients> | undefined => {
+  if (!input) {
+    return undefined;
+  }
+  const next: Partial<HostCoefficients> = {};
+  if (typeof input.c0 === 'number') {
+    next.c0 = input.c0;
+  }
+  if (typeof input.c1 === 'number') {
+    next.c1 = input.c1;
+  }
+  if (typeof input.c2 === 'number') {
+    next.c2 = input.c2;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+};
+
+const normaliseSsdCalibration = (
+  input?: Partial<SsdCoefficients>,
+): Partial<SsdCoefficients> | undefined => {
+  if (!input) {
+    return undefined;
+  }
+  const next: Partial<SsdCoefficients> = {};
+  if (typeof input.d0 === 'number') {
+    next.d0 = input.d0;
+  }
+  if (typeof input.d1 === 'number') {
+    next.d1 = input.d1;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+};
+
+const normaliseCalibration = (calibration?: ScenarioCalibration): ScenarioCalibration | undefined => {
+  if (!calibration) {
+    return undefined;
+  }
+  const warnings = Array.isArray(calibration.warnings)
+    ? calibration.warnings.filter((warning): warning is string => typeof warning === 'string' && warning.trim().length > 0)
+    : [];
+  const tolerance = calibration.tolerancePercent !== undefined
+    ? clamp(calibration.tolerancePercent, 1, 100)
+    : undefined;
+
+  return {
+    profileId: calibration.profileId ?? null,
+    label: typeof calibration.label === 'string' ? calibration.label : undefined,
+    device: typeof calibration.device === 'string' ? calibration.device : undefined,
+    firmware: typeof calibration.firmware === 'string' ? calibration.firmware : undefined,
+    source: typeof calibration.source === 'string' ? calibration.source : undefined,
+    sampleCount: calibration.sampleCount !== undefined ? Math.max(0, Math.round(calibration.sampleCount)) : undefined,
+    muPer4kUs: calibration.muPer4kUs,
+    sigmaPer4kUs: calibration.sigmaPer4kUs,
+    nvmeLatencyUs: calibration.nvmeLatencyUs,
+    queueDepth: calibration.queueDepth !== undefined ? clamp(Math.round(calibration.queueDepth), 1, 128) : undefined,
+    threads: calibration.threads !== undefined ? clamp(Math.round(calibration.threads), 1, 256) : undefined,
+    readNlb: calibration.readNlb !== undefined ? clamp(Math.round(calibration.readNlb), 1, 128) : undefined,
+    mdtsBytes: calibration.mdtsBytes !== undefined ? clamp(Math.round(calibration.mdtsBytes), 4096, 16 * 1024 * 1024) : undefined,
+    tolerancePercent: tolerance,
+    appliedAt: calibration.appliedAt,
+    useProfileDefaults: Boolean(calibration.useProfileDefaults),
+    hostCoefficients: normaliseHostCalibration(calibration.hostCoefficients),
+    ssdCoefficients: normaliseSsdCalibration(calibration.ssdCoefficients),
+    warnings,
+  };
+};
+
 const normaliseScenario = (scenario: EnterpriseScenario): EnterpriseScenario => {
+  const calibration = normaliseCalibration(scenario.calibration);
   const solution: EnterpriseSolution = ['s1', 's2', 's3'].includes(scenario.solution)
     ? scenario.solution
     : 's2';
   const aggregatorPolicy: AggregatorPolicy = scenario.aggregatorPolicy === 'roundRobin' ? 'roundRobin' : 'pinned';
 
-  return {
+  const normalised: EnterpriseScenario = {
     stripeWidth: clamp(Math.round(scenario.stripeWidth), 1, 64),
     objectsInFlight: clamp(Math.round(scenario.objectsInFlight), 1, 16),
     fileSizeMB: clamp(scenario.fileSizeMB, 0.5, 4096),
@@ -407,7 +565,44 @@ const normaliseScenario = (scenario: EnterpriseScenario): EnterpriseScenario => 
     solution,
     aggregatorPolicy,
     randomSeed: clamp(Math.round(scenario.randomSeed), 1, 2_147_483_647),
+    calibration,
   };
+
+  if (calibration?.useProfileDefaults) {
+    if (typeof calibration.muPer4kUs === 'number') {
+      normalised.crcPer4kUs = clamp(calibration.muPer4kUs, 1, 500);
+    }
+    if (typeof calibration.sigmaPer4kUs === 'number') {
+      normalised.crcSigmaPer4kUs = clamp(calibration.sigmaPer4kUs, 0, 500);
+    }
+    if (typeof calibration.nvmeLatencyUs === 'number') {
+      normalised.nvmeLatencyUs = clamp(calibration.nvmeLatencyUs, 1, 500);
+    }
+    if (typeof calibration.queueDepth === 'number') {
+      normalised.queueDepth = clamp(Math.round(calibration.queueDepth), 1, 64);
+    }
+    if (typeof calibration.threads === 'number') {
+      normalised.threads = clamp(Math.round(calibration.threads), 1, 256);
+    }
+    if (typeof calibration.mdtsBytes === 'number') {
+      normalised.mdtsBytes = clamp(Math.round(calibration.mdtsBytes), 4096, 16 * 1024 * 1024);
+    }
+    if (calibration.hostCoefficients) {
+      normalised.hostCoefficients = {
+        c0: calibration.hostCoefficients.c0 ?? normalised.hostCoefficients.c0,
+        c1: calibration.hostCoefficients.c1 ?? normalised.hostCoefficients.c1,
+        c2: calibration.hostCoefficients.c2 ?? normalised.hostCoefficients.c2,
+      };
+    }
+    if (calibration.ssdCoefficients) {
+      normalised.ssdCoefficients = {
+        d0: calibration.ssdCoefficients.d0 ?? normalised.ssdCoefficients.d0,
+        d1: calibration.ssdCoefficients.d1 ?? normalised.ssdCoefficients.d1,
+      };
+    }
+  }
+
+  return normalised;
 };
 
 const buildChunkInfos = (
@@ -692,6 +887,121 @@ const computePercentile = (values: number[], percentile: number): number => {
   return sorted[index];
 };
 
+const computeStandardDeviation = (values: number[]): number => {
+  if (values.length <= 1) {
+    return 0;
+  }
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((acc, value) => acc + (value - mean) * (value - mean), 0) / (values.length - 1);
+  return Math.sqrt(Math.max(variance, 0));
+};
+
+const buildCalibrationSummary = (scenario: EnterpriseScenario): SimulationCalibrationSummary | undefined => {
+  const calibration = scenario.calibration;
+  if (!calibration) {
+    return undefined;
+  }
+  const warnings = [...(calibration.warnings ?? [])];
+  if ((calibration.sampleCount ?? 0) > 0 && (calibration.sampleCount ?? 0) < 1000) {
+    warnings.push('Calibration sample size below 1k commands; confidence may be weak.');
+  }
+  if (calibration.sigmaPer4kUs === undefined || calibration.sigmaPer4kUs < 0) {
+    warnings.push('Calibration σ missing – jitter falls back to scenario input.');
+  }
+  return {
+    profileId: calibration.profileId ?? null,
+    label: calibration.label,
+    device: calibration.device,
+    firmware: calibration.firmware,
+    source: calibration.source,
+    sampleCount: calibration.sampleCount,
+    tolerancePercent: calibration.tolerancePercent,
+    warnings,
+    applied: Boolean(calibration.profileId),
+    useProfileDefaults: Boolean(calibration.useProfileDefaults),
+    muPer4kUs: calibration.muPer4kUs,
+    sigmaPer4kUs: calibration.sigmaPer4kUs,
+  };
+};
+
+const computeConfidence = (
+  scenario: EnterpriseScenario,
+  derived: SimulationDerived,
+  objectLatencies: number[],
+  kpis: SimulationKPIs,
+): KPIConfidenceSet | undefined => {
+  const calibration = scenario.calibration;
+  if (!calibration || !calibration.sampleCount || calibration.sampleCount <= 0) {
+    return undefined;
+  }
+  if (!objectLatencies.length) {
+    return undefined;
+  }
+  const observedObjectCount = objectLatencies.length;
+  const stdDev = computeStandardDeviation(objectLatencies);
+  if (!Number.isFinite(stdDev) || stdDev === 0) {
+    return undefined;
+  }
+
+  const commandsPerObject = Math.max(derived.commandsPerObject, 1);
+  const calibrationSampleCount = Math.max(1, Math.round(calibration.sampleCount));
+  const estimatedObjectCount = Math.max(
+    observedObjectCount,
+    Math.floor(calibrationSampleCount / commandsPerObject),
+  );
+  if (estimatedObjectCount <= 1) {
+    return undefined;
+  }
+
+  const z = 1.96; // 95% confidence interval
+  const observedMargin = (stdDev / Math.sqrt(observedObjectCount)) * z;
+  if (!Number.isFinite(observedMargin) || observedMargin <= 0) {
+    return undefined;
+  }
+  const scale = Math.sqrt(observedObjectCount / estimatedObjectCount);
+  const adjustedMargin = observedMargin * scale;
+
+  const buildInterval = (value: number, multiplier: number): KPIConfidenceInterval => {
+    const margin = adjustedMargin * multiplier;
+    return {
+      margin,
+      lower: Math.max(0, value - margin),
+      upper: value + margin,
+    };
+  };
+
+  const multiplierForPercentile = (percentile: number): number => {
+    if (percentile >= 99) {
+      return 2.1;
+    }
+    if (percentile >= 95) {
+      return 1.4;
+    }
+    return 1.0;
+  };
+
+  const latencyInterval = buildInterval(kpis.latencyUs, 1.0);
+  const throughputMargin = kpis.latencyUs > 0
+    ? (kpis.throughputObjsPerSec * (latencyInterval.margin / kpis.latencyUs))
+    : 0;
+
+  return {
+    confidenceLevel: 0.95,
+    sampleCount: calibrationSampleCount,
+    objectCount: estimatedObjectCount,
+    source: 'calibration',
+    p50: buildInterval(kpis.p50Us, multiplierForPercentile(50)),
+    p95: buildInterval(kpis.p95Us, multiplierForPercentile(95)),
+    p99: buildInterval(kpis.p99Us, multiplierForPercentile(99)),
+    latency: latencyInterval,
+    throughput: {
+      margin: throughputMargin,
+      lower: Math.max(0, kpis.throughputObjsPerSec - throughputMargin),
+      upper: kpis.throughputObjsPerSec + throughputMargin,
+    },
+  };
+};
+
 const buildHeatmapLane = (
   id: string,
   label: string,
@@ -849,6 +1159,8 @@ const simulateSerial = (
       type: 'info',
     },
   ];
+
+  const commandsPerObject = chunkInfos.reduce((sum, chunk) => sum + chunk.segments.length, 0);
 
   const lanes: TimelineLane[] = Array.from({ length: scenario.stripeWidth }, (_, laneIndex) => ({
     id: `ssd-${laneIndex}`,
@@ -1089,7 +1401,14 @@ const simulateSerial = (
     retries: totalRetries,
     randomSeed: scenario.randomSeed,
     aggregatorLocation: 'serial',
+    commandsPerObject,
+    calibration: buildCalibrationSummary(scenario),
   };
+
+  const confidence = computeConfidence(scenario, derived, objectLatencies, kpis);
+  if (confidence) {
+    kpis.confidence = confidence;
+  }
 
   return {
     scenario,
@@ -1114,6 +1433,7 @@ const simulateParallelHost = (
   const laneJobs = buildLaneJobs(scenario, chunkInfos, stripes);
   const laneResults = laneJobs.map((jobs, index) => simulateLane(scenario, index, jobs, rng));
   const aggregated = aggregateLaneResults(laneResults);
+  const commandsPerObject = chunkInfos.reduce((sum, chunk) => sum + chunk.segments.length, 0);
 
   const stripeReady: Map<string, number> = new Map();
   const objectReady: number[] = Array.from({ length: scenario.objectsInFlight }, () => 0);
@@ -1272,7 +1592,14 @@ const simulateParallelHost = (
     retries: aggregated.retries,
     randomSeed: scenario.randomSeed,
     aggregatorLocation: 'host',
+    commandsPerObject,
+    calibration: buildCalibrationSummary(scenario),
   };
+
+  const confidence = computeConfidence(scenario, derived, objectLatencies, kpis);
+  if (confidence) {
+    kpis.confidence = confidence;
+  }
 
   const allEvents = [...aggregated.events, ...hostEvents].sort((a, b) => a.timeUs - b.timeUs);
   const runbook = aggregated.runbook.sort((a, b) => a.timeUs - b.timeUs);
@@ -1300,6 +1627,7 @@ const simulateParallelSsd = (
   const laneJobs = buildLaneJobs(scenario, chunkInfos, stripes);
   const laneResults = laneJobs.map((jobs, index) => simulateLane(scenario, index, jobs, rng));
   const aggregated = aggregateLaneResults(laneResults);
+  const commandsPerObject = chunkInfos.reduce((sum, chunk) => sum + chunk.segments.length, 0);
 
   const stripeReady: Map<string, number> = new Map();
   const objectComputeReady: number[] = Array.from({ length: scenario.objectsInFlight }, () => 0);
@@ -1471,7 +1799,14 @@ const simulateParallelSsd = (
     retries: aggregated.retries,
     randomSeed: scenario.randomSeed,
     aggregatorLocation: 'ssd',
+    commandsPerObject,
+    calibration: buildCalibrationSummary(scenario),
   };
+
+  const confidence = computeConfidence(scenario, derived, objectLatencies, kpis);
+  if (confidence) {
+    kpis.confidence = confidence;
+  }
 
   const allEvents = [...aggregated.events, ...aggregatorEvents, ...hostEvents].sort((a, b) => a.timeUs - b.timeUs);
   const runbook = aggregated.runbook.sort((a, b) => a.timeUs - b.timeUs);
