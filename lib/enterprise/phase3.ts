@@ -866,6 +866,9 @@ const simulateSerial = (
 
   const objectLatencies: number[] = [];
   const runbook: RunbookEntry[] = [];
+  const hostSegments: TimelineSegment[] = [];
+  const hostOccupancy: OccupancyEvent[] = [];
+  const hostEvents: EventLogEntry[] = [];
 
   let globalCursor = 0;
   let totalFailures = 0;
