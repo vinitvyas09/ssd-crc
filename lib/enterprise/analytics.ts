@@ -153,6 +153,7 @@ const cloneScenario = (scenario: EnterpriseScenario): EnterpriseScenario => {
     ...scenario,
     hostCoefficients: { ...scenario.hostCoefficients },
     ssdCoefficients: { ...scenario.ssdCoefficients },
+    stripeAssignments: scenario.stripeAssignments ? [...scenario.stripeAssignments] : undefined,
     calibration: scenario.calibration
       ? {
           ...scenario.calibration,
