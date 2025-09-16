@@ -13,6 +13,7 @@ import {
   RetryPolicy,
   CalibrationProfile,
 } from '@/lib/enterprise/phase3';
+import type { TimelineSegment } from '@/lib/enterprise/phase3';
 import { cn } from '@/lib/utils';
 import {
   SweepConfig,
@@ -1693,6 +1694,8 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
   sweepRun,
   sweepAdvisorHints,
   sweepAdvisorEnabled,
+  validationWarnings,
+  validationErrors,
 }) => {
   const latencyDistribution = React.useMemo(
     () => computeLatencyDistribution(result.derived.objectLatenciesUs, 24),
@@ -1764,6 +1767,8 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         onImportFile={onImportFile}
         isRunning={isRunning}
         progress={progress}
+        validationWarnings={validationWarnings}
+        validationErrors={validationErrors}
       />
     );
   }
@@ -1784,6 +1789,8 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         onImportFile={onImportFile}
         advisorEnabled={sweepAdvisorEnabled ?? false}
         advisorHints={sweepAdvisorHints ?? []}
+        validationWarnings={validationWarnings}
+        validationErrors={validationErrors}
       />
     );
   }
