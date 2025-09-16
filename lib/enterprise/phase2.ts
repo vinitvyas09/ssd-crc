@@ -132,7 +132,7 @@ export const ENTERPRISE_PHASE2_PRESET: EnterpriseScenario = {
     d1: 2.2,
   },
   nvmeLatencyUs: 12,
-  crcPer4kUs: 95,
+  crcPer4kUs: 110,
   orchestrationOverheadUs: 18,
   mdtsBytes: 128 * 1024,
   solution: 's2',
