@@ -51,7 +51,7 @@ export default function CRCWorkflowVisualizer() {
   const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE2_PRESET);
   const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<EnterpriseScenario>(ENTERPRISE_PHASE2_PRESET);
   const [enterpriseShowCritical, setEnterpriseShowCritical] = useState(false);
-  const [enterpriseEventsOpen, setEnterpriseEventsOpen] = useState(true);
+  const [enterpriseEventsOpen, setEnterpriseEventsOpen] = useState(false);
   const [enterpriseImportError, setEnterpriseImportError] = useState<string | null>(null);
   
   const svgRef = useRef<SVGSVGElement>(null);
