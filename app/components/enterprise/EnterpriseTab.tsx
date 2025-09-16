@@ -12,8 +12,8 @@ import {
   ServiceDistribution,
   RetryPolicy,
   CalibrationProfile,
-} from '@/lib/enterprise/phase3';
-import type { TimelineSegment } from '@/lib/enterprise/phase3';
+} from '@/lib/enterprise';
+import type { TimelineSegment } from '@/lib/enterprise';
 import { cn } from '@/lib/utils';
 import {
   SweepConfig,
