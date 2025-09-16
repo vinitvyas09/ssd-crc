@@ -4,7 +4,7 @@ import {
   SimulationResult,
   TimelineLane,
   simulateEnterprise,
-} from '@/lib/enterprise/phase3';
+} from '@/lib/enterprise';
 
 export type SweepKnob =
   | 'stripeWidth'
