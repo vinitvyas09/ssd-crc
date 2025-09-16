@@ -73,7 +73,7 @@ export const CALCULATOR_TOOL = {
   },
   
   // Shared execution logic
-  execute: async (args: any) => {
+  execute: async (args: CalculatorInput): Promise<CalculatorOutput> => {
     console.log("[Calculator Tool] Executing with args:", args);
     await delay(1000);
     
@@ -239,7 +239,9 @@ export const TAVILY_SEARCH_TOOL = {
   },
   
   // Shared execution logic
-  execute: async (args: any) => {
+  execute: async (
+    args: TavilySearchInput
+  ): Promise<TavilySearchResult | { error: string }> => {
     try {
       await delay(500);
       
@@ -305,13 +307,13 @@ export function getVercelAITools() {
     calculatorTool: tool({
       description: CALCULATOR_TOOL.description,
       inputSchema: CALCULATOR_TOOL.zodSchema.input,
-      execute: CALCULATOR_TOOL.execute as any,
+      execute: CALCULATOR_TOOL.execute,
     }),
     
     tavilySearchTool: tool({
       description: TAVILY_SEARCH_TOOL.description,
       inputSchema: TAVILY_SEARCH_TOOL.zodSchema.input,
-      execute: TAVILY_SEARCH_TOOL.execute as any,
+      execute: TAVILY_SEARCH_TOOL.execute,
     })
   };
 }
@@ -329,10 +331,13 @@ export function getVapiFunctions() {
 /**
  * Execute a tool by name (for server-side function execution in Vapi)
  */
-export async function executeToolByName(name: string, args: any) {
+export async function executeToolByName<TName extends ToolName>(
+  name: TName,
+  args: ToolArguments[TName]
+): Promise<ToolExecutionResult[TName] | { error: string }> {
   console.log(`[ExecuteToolByName] Executing tool: ${name} with args:`, args);
   
-  let result;
+  let result: ToolExecutionResult[TName] | { error: string };
   switch (name) {
     case "calculator":
       result = await CALCULATOR_TOOL.execute(args);
@@ -356,3 +361,13 @@ export async function executeToolByName(name: string, args: any) {
 export type CalculatorInput = z.infer<typeof CALCULATOR_TOOL.zodSchema.input>;
 export type CalculatorOutput = z.infer<typeof CALCULATOR_TOOL.zodSchema.output>;
 export type TavilySearchInput = z.infer<typeof TAVILY_SEARCH_TOOL.zodSchema.input>;
+export type TavilySearchResult = Awaited<ReturnType<TavilyClient["search"]>>;
+export type ToolName = "calculator" | "tavilySearch";
+export type ToolArguments = {
+  calculator: CalculatorInput;
+  tavilySearch: TavilySearchInput;
+};
+export type ToolExecutionResult = {
+  calculator: CalculatorOutput;
+  tavilySearch: TavilySearchResult | { error: string };
+};
