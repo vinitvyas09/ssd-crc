@@ -14,6 +14,36 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // UNIFIED TOOL DEFINITIONS
 // ============================================
 
+const calculatorInputSchema = z
+  .object({
+    expression: z
+      .string()
+      .optional()
+      .describe('A simple arithmetic expression like "2+2", "3 * 7", or "234234234-423"'),
+    operation: z
+      .enum(["add", "subtract", "multiply", "divide"])
+      .optional()
+      .describe("The arithmetic operation to perform"),
+    a: z.number().optional().describe("The first number"),
+    b: z.number().optional().describe("The second number"),
+  })
+  .describe("Provide either an 'expression' or the trio of 'operation', 'a', and 'b'.");
+
+const calculatorOutputSchema = z.union([
+  z.object({ result: z.number() }),
+  z.object({ error: z.string() }),
+]);
+
+const tavilyInputSchema = z.object({
+  query: z.string().describe("The search query"),
+  search_depth: z.enum(["basic", "advanced"]).optional().describe("The depth of search to perform"),
+  include_domains: z.array(z.string()).optional().describe("Specific domains to include in the search"),
+  exclude_domains: z.array(z.string()).optional().describe("Specific domains to exclude from the search"),
+  max_results: z.number().optional().describe("Maximum number of results to return"),
+  include_answer: z.boolean().optional().describe("Whether to include an AI-generated answer"),
+  include_raw_content: z.boolean().optional().describe("Whether to include raw content from the search results"),
+});
+
 /**
  * Unified Calculator Tool Definition
  */
@@ -23,28 +53,8 @@ export const CALCULATOR_TOOL = {
   
   // Zod schema for Vercel AI SDK
   zodSchema: {
-    input: z
-      .object({
-        expression: z
-          .string()
-          .optional()
-          .describe(
-            'A simple arithmetic expression like "2+2", "3 * 7", or "234234234-423"'
-          ),
-        operation: z
-          .enum(["add", "subtract", "multiply", "divide"])
-          .optional()
-          .describe("The arithmetic operation to perform"),
-        a: z.number().optional().describe("The first number"),
-        b: z.number().optional().describe("The second number"),
-      })
-      .describe(
-        "Provide either an 'expression' or the trio of 'operation', 'a', and 'b'."
-      ),
-    output: z.union([
-      z.object({ result: z.number() }),
-      z.object({ error: z.string() }),
-    ])
+    input: calculatorInputSchema,
+    output: calculatorOutputSchema,
   },
   
   // OpenAI function schema for Vapi
@@ -162,32 +172,7 @@ export const TAVILY_SEARCH_TOOL = {
   
   // Zod schema for Vercel AI SDK
   zodSchema: {
-    input: z.object({
-      query: z.string().describe("The search query"),
-      search_depth: z.enum(["basic", "advanced"]).optional().describe(
-        "The depth of search to perform"
-      ),
-      include_domains: z
-        .array(z.string())
-        .optional()
-        .describe("Specific domains to include in the search"),
-      exclude_domains: z
-        .array(z.string())
-        .optional()
-        .describe("Specific domains to exclude from the search"),
-      max_results: z
-        .number()
-        .optional()
-        .describe("Maximum number of results to return"),
-      include_answer: z
-        .boolean()
-        .optional()
-        .describe("Whether to include an AI-generated answer"),
-      include_raw_content: z
-        .boolean()
-        .optional()
-        .describe("Whether to include raw content from the search results"),
-    }),
+    input: tavilyInputSchema,
     output: z.any() // Flexible output schema for search results
   },
   
@@ -337,30 +322,33 @@ export async function executeToolByName<TName extends ToolName>(
 ): Promise<ToolExecutionResult[TName] | { error: string }> {
   console.log(`[ExecuteToolByName] Executing tool: ${name} with args:`, args);
   
-  let result: ToolExecutionResult[TName] | { error: string };
-  switch (name) {
-    case "calculator":
-      result = await CALCULATOR_TOOL.execute(args);
-      break;
-    case "tavilySearch":
-      result = await TAVILY_SEARCH_TOOL.execute(args);
-      break;
-    default:
-      console.error(`[ExecuteToolByName] Unknown tool: ${name}`);
-      result = { error: `Unknown tool: ${name}` };
+  if (name === "calculator") {
+    const result = await CALCULATOR_TOOL.execute(
+      args as ToolArguments["calculator"]
+    );
+    console.log(`[ExecuteToolByName] Tool ${name} execution complete:`, result);
+    return result as ToolExecutionResult[TName];
   }
-  
-  console.log(`[ExecuteToolByName] Tool ${name} execution complete:`, result);
-  return result;
+
+  if (name === "tavilySearch") {
+    const result = await TAVILY_SEARCH_TOOL.execute(
+      args as ToolArguments["tavilySearch"]
+    );
+    console.log(`[ExecuteToolByName] Tool ${name} execution complete:`, result);
+    return result as ToolExecutionResult[TName];
+  }
+
+  console.error(`[ExecuteToolByName] Unknown tool: ${name}`);
+  return { error: `Unknown tool: ${name}` };
 }
 
 // ============================================
 // TYPE EXPORTS
 // ============================================
 
-export type CalculatorInput = z.infer<typeof CALCULATOR_TOOL.zodSchema.input>;
-export type CalculatorOutput = z.infer<typeof CALCULATOR_TOOL.zodSchema.output>;
-export type TavilySearchInput = z.infer<typeof TAVILY_SEARCH_TOOL.zodSchema.input>;
+export type CalculatorInput = z.infer<typeof calculatorInputSchema>;
+export type CalculatorOutput = z.infer<typeof calculatorOutputSchema>;
+export type TavilySearchInput = z.infer<typeof tavilyInputSchema>;
 export type TavilySearchResult = Awaited<ReturnType<TavilyClient["search"]>>;
 export type ToolName = "calculator" | "tavilySearch";
 export type ToolArguments = {
