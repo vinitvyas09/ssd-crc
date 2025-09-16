@@ -135,9 +135,13 @@ export function useVapi() {
       console.log('Starting Vapi call with config:', { 
         token: process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN ? '[SET]' : '[MISSING]',
         assistantName: assistant.name,
-        model: assistant.model.provider,
-        hasSystemPrompt: !!assistant.model.systemPrompt,
-        toolsCount: assistant.model.tools?.length || 0
+        model: assistant.model?.provider ?? 'unknown',
+        hasSystemPrompt:
+          Array.isArray(assistant.model?.messages) &&
+          assistant.model?.messages?.some(
+            (message) => message.role === 'system' && !!message.content,
+          ),
+        toolsCount: assistant.model?.tools?.length || 0,
       });
       
       await vapi.start(assistant);
