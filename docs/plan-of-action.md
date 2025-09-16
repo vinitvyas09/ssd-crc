@@ -234,9 +234,11 @@ Ship quality: presets, exports, accessibility, guardrails, docs.
 
 **Acceptance**
 
-* Presets render without warnings; exports re‑import cleanly.
+* Presets render without warnings; exports re-import cleanly.
 * A11y checks pass (focus order, ARIA where applicable).
 * Stress runs do not drop frames or stall the UI beyond the defined render budget.
+
+**Status:** ✅ Live — preset library (baseline/16×/stress/match exerciser), CSV + snapshot exports, guardrails, accessibility polish, and in-product latency help are implemented.
 
 ---
 
