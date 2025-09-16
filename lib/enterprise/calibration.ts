@@ -2,7 +2,7 @@ import {
   CalibrationProfile,
   ScenarioCalibration,
   EnterpriseScenario,
-} from '@/lib/enterprise/phase3';
+} from '@/lib/enterprise';
 
 export interface CalibrationParseOptions {
   label?: string;
