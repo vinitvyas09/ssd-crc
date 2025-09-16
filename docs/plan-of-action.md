@@ -39,6 +39,7 @@
 |     4 |      ✅     | S1/S2/S3                   | full                             | **Log‑based calibration** (profiles) | Compare                              | + Confidence bands on KPIs       |        Profiles        |
 |     5 |      ✅     | S1/S2/S3                   | full                             |              calibrated              | **What‑If Sweeps** (+ advisor hints) | + Distributions (PDF/CDF)        |      Sweep exports     |
 |     6 |      ✅     | S1/S2/S3                   | full                             |              calibrated              | full                                 | polish, accessibility, presets   |           All          |
+|     7 |      ✅     | S1/S2/S3                   | full                             |              calibrated              | full                                 | + Derived KPI overlays           |           All          |
 
 > *Deterministic first to guarantee a clear reference path, then add realism.*
 
@@ -250,6 +251,7 @@ Ship quality: presets, exports, accessibility, guardrails, docs.
 * **Phase 4:** + Calibration import/profile; “Use profile defaults” toggle.
 * **Phase 5:** + Sweep control (knob, start/stop/step), Advisor on/off, Distributions view.
 * **Phase 6:** + Preset library, Export formats, Snapshot.
+* **Phase 7:** + Stripe Map Source, Access Order, Read+NLB (guarded by MDTS), Aggregator policy: least‑loaded; Derived KPIs (Host CPU %, PCIe control‑traffic), Critical Path formula tooltip.
 
 ---
 
@@ -323,3 +325,109 @@ Ship quality: presets, exports, accessibility, guardrails, docs.
 * **Phase 6 polishes** with exports, presets, and accessibility.
 
 Each phase is a **complete E2E flow** that the user can run and visually verify.
+
+---
+
+## Implementation Review — Enterprise Simulator (as built)
+
+Summary
+
+- Core engine and UI for S1/S2/S3 are implemented with MDTS splitting, queue depth, stochastic service times, retries, and event/runbook logging.
+- Compare and What‑If Sweep modes exist with advisor hints, CSV exports, and snapshot export.
+- Calibration import (paste/file) is wired with profile save/load and confidence interval display in KPIs.
+- Integrated within `CRCWorkflowVisualizer` as an “Enterprise” view; library code lives under `lib/enterprise/*`.
+
+What’s Aligned (by plan phase)
+
+- Phase 1: S2 end‑to‑end with KPIs + timeline. Deterministic mode supported via `serviceDistribution = 'deterministic'`.
+- Phase 2: S1 and S3 added; aggregator policy supports pinned and round‑robin; Aggregation Tree is rendered.
+- Phase 3: Jitter, stragglers, and failures implemented; Compare mode, Queue Heatmap, and Failure Runbook present.
+- Phase 4: Calibration parser and profiles implemented; KPIs show CI margins derived from calibration/sample counts.
+- Phase 5: What‑If sweeps (several knobs) + Advisor hints; sweep CSV export.
+- Phase 6: Presets, exports (scenario, results, snapshot) and guardrails exist; basic a11y labels and performance guards (segment aggregation) are present.
+
+Gaps & Divergences
+
+- Placement & Isolation
+  - Implemented as a mode inside `CRCWorkflowVisualizer` rather than a dedicated `/enterprise` route behind a feature flag.
+  - State is mostly isolated, but route‑level isolation and feature flag are not present.
+- Aggregator policy
+  - Only `pinned` and `roundRobin` are implemented; `least‑loaded` policy from the spec is not available.
+- Knobs not yet surfaced
+  - PCIe Gen/Lanes and host CPU estimate are not modeled or exposed.
+  - Read+NLB is only used for validation/warnings via calibration, not as a live knob.
+  - Stripe map source (Uniform vs Imported from Data Distribution) and Access Order (stripe vs randomized) not implemented.
+- KPI coverage
+  - No Host CPU estimate or PCIe control‑traffic estimates in KPI header.
+  - Critical‑path overlays exist, but no explicit “critical path formula” tooltip beyond the text hints.
+- Calibration/CI details
+  - CI computation uses a normal approximation on simulated object latencies and scales from calibration sample counts; it’s reasonable but not explicitly tied to per‑percentile empirical variance. Consider per‑percentile bootstrapping when calibration samples are large.
+- Validation & guardrails
+  - Good MDTS/queue checks present. Could add more proactive guidance when QD is a bottleneck (e.g., suggest QD ≥ objectsInFlight).
+
+Modeling Notes (correctness/quality)
+
+- S1 serial pipeline is modeled as a single global chain; lane occupancy reflects sequential behavior and matches the seeded semantics.
+- S2/S3 parallelism uses per‑SSD queues bounded by `queueDepth`; S3 adds an aggregator lane per policy with occupancy tracked per SSD.
+- Aggregation costs: S2 uses `c0 + c1·x + c2·log2(x)`; S3 uses `d0 + d1·x`. This aligns with the plan and is exposed as live knobs and via calibration defaults.
+- MDTS clamp and segment splitting are applied per chunk with clear UI warnings; derived parameters panel reflects aggregator totals and critical path contributions.
+
+High‑Value Next Steps
+
+- Add least‑loaded aggregator policy and expose it in the UI; show its effect in heatmap and KPIs.
+- Introduce “Stripe Map Source” with optional import from Data Distribution; optionally add “Access Order” (stripe vs randomized) to stress cache/queue behavior.
+- Add PCIe control‑plane headroom as metadata (Gen/Lanes), and a lightweight Host CPU estimate (even if heuristic) to the KPI header.
+- Surface Read+NLB as a live knob (guarded by MDTS) when not using a calibration profile.
+  
+
+Validation Suggestions
+
+- Add a “golden micro‑scenario” preset set for S1/S2/S3 and verify p50/p95/p99 monotonicity with controlled jitter.
+- Include a quick self‑test for MDTS clamping and queue saturation (e.g., x=8, QD=1 vs QD=32) to catch regressions.
+
+---
+
+### Phase 7 — Aggregator + Stripe Map + Derived KPIs
+
+Goal
+
+- Land the highest‑value knobs and outputs without adding low‑ROI controls. Improve realism and decisionability while keeping the UI focused.
+
+Scope
+
+- Add (high‑value knobs/derived outputs):
+  - Stripe Map Source: Uniform | Import from Data Distribution.
+  - Access Order: stripe order | randomized (affects queue/jitter exposure).
+  - Aggregator Policy: add least‑loaded (choose aggregator lane with lowest end time).
+  - Read+NLB knob (1–4) with MDTS guardrails; warn/error on invalid combos.
+  - Derived KPIs (no new knobs):
+    - Host CPU estimate: approximate core utilization from aggregation time share.
+    - PCIe control‑traffic: relative control TLPs per SSD and for aggregator.
+    - Critical Path tooltip: formula per solution (concise overlay next to KPIs).
+
+- Out of scope (kept minimal):
+  - PCIe Gen/Lanes stays metadata (not a live knob).
+  - Threads remains read‑only/calibration‑seeded.
+  - CPU frequency knob is avoided; use the CPU estimate heuristic above.
+
+- Modeling updates (lightweight):
+  - Least‑loaded aggregator: pick lane with min aggregator cursor; reflect in heatmap; update critical path attribution.
+  - Access Order randomized: shuffle per‑stripe submission order to increase queue contention; ensure deterministic under seed.
+  - Stripe Map import: accept lane assignment array from Data Distribution tab; fallback to uniform if absent.
+  - Host CPU estimate: `CPU% ≈ AggregationTime_total / WallClock_total × 100` (single‑core equivalent), with note that concurrency may saturate multiple cores.
+  - PCIe control traffic: `msgs ≈ (2 × commands) + (S3: 2 × stripes per object)`; render as relative bars per SSD/aggregator.
+
+E2E demo
+
+1. Import a stripe map from Data Distribution; toggle Access Order randomized and observe p95 increase under fixed jitter.
+2. Switch S3 aggregator to least‑loaded and see aggregator heatmap peak drop vs pinned on multi‑object runs.
+3. Increase Read+NLB above MDTS; see guardrail warning/error; reduce to valid range and re‑run.
+4. Review KPIs with Host CPU and PCIe control‑traffic estimates; open Critical Path tooltip for formulas.
+
+Acceptance
+
+- New knobs visible and gated appropriately; invalid Read+NLB × MDTS combos blocked with actionable messages.
+- Least‑loaded policy reduces aggregator lane peak occupancy vs pinned (same seed/scenario) and updates critical‑path shares.
+- Randomized access yields higher p95 vs stripe order under same μ/σ and seed.
+- Derived KPIs are shown (Host CPU %, PCIe control traffic) and export with results.
+- Compare/Sweep still export; advisor hints remain coherent; no regressions in existing phases.
