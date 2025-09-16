@@ -352,8 +352,9 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
           <div className="grid grid-cols-3 gap-2 text-[11px]">
             {(['start', 'end', 'step'] as Array<keyof SweepConfig>).map((field) => {
               const label = field === 'start' ? 'Start' : field === 'end' ? 'End' : 'Step';
-              const value = sweepConfig[field];
-              const display = field === 'step' ? value : clampSweepValue(value);
+              const rawValue = sweepConfig[field];
+              const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+              const display = field === 'step' ? numericValue : clampSweepValue(numericValue);
               return (
                 <label key={field} className="flex flex-col gap-1 text-zinc-300">
                   <span className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</span>
