@@ -14,6 +14,7 @@ import {
   EnterpriseScenario,
   simulateEnterprise,
   AggregationLocation,
+  EnterpriseSolution,
 } from '@/lib/enterprise/phase3';
 import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -54,11 +55,16 @@ export default function CRCWorkflowVisualizer() {
   const [enterpriseShowCritical, setEnterpriseShowCritical] = useState(false);
   const [enterpriseEventsOpen, setEnterpriseEventsOpen] = useState(false);
   const [enterpriseImportError, setEnterpriseImportError] = useState<string | null>(null);
+  const [enterpriseIsRunning, setEnterpriseIsRunning] = useState(false);
+  const [enterpriseProgress, setEnterpriseProgress] = useState(0);
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dummyRef = useRef<SVGSVGElement>(null);
   const enterpriseFileInputRef = useRef<HTMLInputElement>(null);
+  const enterpriseProgressIntervalRef = useRef<number | null>(null);
+  const enterpriseProgressTimeoutRef = useRef<number | null>(null);
+  const enterpriseCommitTimeoutRef = useRef<number | null>(null);
 
   const cloneEnterpriseScenario = useCallback((scenario: EnterpriseScenario): EnterpriseScenario => ({
     ...scenario,
@@ -121,9 +127,60 @@ export default function CRCWorkflowVisualizer() {
   );
   const enterpriseMdtsClamp = enterpriseDraftScenario.chunkSizeKB * 1024 > enterpriseDraftScenario.mdtsBytes;
 
+  useEffect(() => {
+    return () => {
+      if (enterpriseProgressIntervalRef.current !== null) {
+        window.clearInterval(enterpriseProgressIntervalRef.current);
+      }
+      if (enterpriseProgressTimeoutRef.current !== null) {
+        window.clearTimeout(enterpriseProgressTimeoutRef.current);
+      }
+      if (enterpriseCommitTimeoutRef.current !== null) {
+        window.clearTimeout(enterpriseCommitTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const runEnterpriseSimulation = useCallback(() => {
     setEnterpriseImportError(null);
-    setEnterpriseCommittedScenario(cloneEnterpriseScenario(enterpriseDraftScenario));
+    if (enterpriseProgressIntervalRef.current !== null) {
+      window.clearInterval(enterpriseProgressIntervalRef.current);
+    }
+    if (enterpriseProgressTimeoutRef.current !== null) {
+      window.clearTimeout(enterpriseProgressTimeoutRef.current);
+    }
+    if (enterpriseCommitTimeoutRef.current !== null) {
+      window.clearTimeout(enterpriseCommitTimeoutRef.current);
+    }
+
+    setEnterpriseIsRunning(true);
+    setEnterpriseProgress(5);
+
+    enterpriseProgressIntervalRef.current = window.setInterval(() => {
+      setEnterpriseProgress((prev) => {
+        if (prev >= 88) {
+          return prev;
+        }
+        return Math.min(prev + 6, 88);
+      });
+    }, 85);
+
+    const nextScenario = cloneEnterpriseScenario(enterpriseDraftScenario);
+
+    enterpriseCommitTimeoutRef.current = window.setTimeout(() => {
+      setEnterpriseCommittedScenario(nextScenario);
+      if (enterpriseProgressIntervalRef.current !== null) {
+        window.clearInterval(enterpriseProgressIntervalRef.current);
+        enterpriseProgressIntervalRef.current = null;
+      }
+      setEnterpriseProgress(100);
+      setEnterpriseIsRunning(false);
+      enterpriseProgressTimeoutRef.current = window.setTimeout(() => {
+        setEnterpriseProgress(0);
+        enterpriseProgressTimeoutRef.current = null;
+      }, 600);
+      enterpriseCommitTimeoutRef.current = null;
+    }, 180);
   }, [cloneEnterpriseScenario, enterpriseDraftScenario]);
 
   const loadEnterprisePreset = useCallback(() => {
@@ -1099,6 +1156,8 @@ export default function CRCWorkflowVisualizer() {
                     result={enterpriseResult}
                     compareResults={enterpriseCompareResults}
                     draftScenario={enterpriseDraftScenario}
+                    isRunning={enterpriseIsRunning}
+                    progress={enterpriseProgress}
                     showCritical={enterpriseShowCritical}
                     onToggleCritical={() => setEnterpriseShowCritical((prev) => !prev)}
                     eventsOpen={enterpriseEventsOpen}
