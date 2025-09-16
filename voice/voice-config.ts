@@ -1,33 +1,10 @@
 import { system_prompt } from "@/chat/prompt";
 import { getVapiFunctions } from "@/tools/unified-tools";
-
-type VapiFunctionDefinition = ReturnType<typeof getVapiFunctions>[number];
-
-interface VoiceAssistantTool {
-  type: "function";
-  function: VapiFunctionDefinition;
-  server: {
-    url: string;
-  };
-}
-
-interface VoiceAssistantConfig {
-  name: string;
-  voice: {
-    voiceId: string;
-    provider: "11labs" | string;
-    stability: number;
-    similarityBoost: number;
-  };
-  model: {
-    provider: "openai" | string;
-    model: string;
-    temperature: number;
-    systemPrompt: string;
-    tools: VoiceAssistantTool[];
-  };
-  firstMessage: string;
-}
+import type {
+  CreateAssistantDTO,
+  CreateFunctionToolDTO,
+  OpenAIFunction,
+} from "@vapi-ai/web/dist/api";
 
 // Get the base URL for the functions server
 const getServerUrl = () => {
@@ -48,28 +25,33 @@ const getServerUrl = () => {
   return 'http://localhost:3000';
 };
 
-const buildVoiceAssistantTools = (): VoiceAssistantTool[] =>
-  getVapiFunctions().map((tool) => ({
+const buildVoiceAssistantTools = (): CreateFunctionToolDTO[] =>
+  getVapiFunctions().map((fn) => ({
     type: "function",
-    function: tool,
+    function: fn as OpenAIFunction,
     server: {
       url: `${getServerUrl()}/api/voice/functions`,
     },
   }));
 
-export const assistant: VoiceAssistantConfig = {
+export const assistant: CreateAssistantDTO = {
   name: "Emily",
   voice: {
     voiceId: "tnSpp4vdxKPjI9w0GnoV",
     provider: "11labs",
     stability: 0.5,
-    similarityBoost: 0.75
+    similarityBoost: 0.75,
   },
   model: {
     provider: "openai",
     model: "gpt-4.1",
     temperature: 0.7,
-    systemPrompt: system_prompt,
+    messages: [
+      {
+        role: "system",
+        content: system_prompt,
+      },
+    ],
     tools: buildVoiceAssistantTools(),
   },
   firstMessage:
