@@ -15,7 +15,13 @@ import {
   simulateEnterprise,
   AggregationLocation,
   EnterpriseSolution,
+  CalibrationProfile,
 } from '@/lib/enterprise/phase3';
+import {
+  parseCalibrationInput,
+  profileToScenarioCalibration,
+  scenarioToCalibrationProfile,
+} from '@/lib/enterprise/calibration';
 import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Voice } from '@/voice/voice-asst';
@@ -57,11 +63,15 @@ export default function CRCWorkflowVisualizer() {
   const [enterpriseImportError, setEnterpriseImportError] = useState<string | null>(null);
   const [enterpriseIsRunning, setEnterpriseIsRunning] = useState(false);
   const [enterpriseProgress, setEnterpriseProgress] = useState(0);
+  const [calibrationProfiles, setCalibrationProfiles] = useState<CalibrationProfile[]>([]);
+  const [calibrationWarnings, setCalibrationWarnings] = useState<string[]>([]);
+  const [calibrationImportError, setCalibrationImportError] = useState<string | null>(null);
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dummyRef = useRef<SVGSVGElement>(null);
   const enterpriseFileInputRef = useRef<HTMLInputElement>(null);
+  const calibrationFileInputRef = useRef<HTMLInputElement>(null);
   const enterpriseProgressIntervalRef = useRef<number | null>(null);
   const enterpriseProgressTimeoutRef = useRef<number | null>(null);
   const enterpriseCommitTimeoutRef = useRef<number | null>(null);
@@ -70,6 +80,18 @@ export default function CRCWorkflowVisualizer() {
     ...scenario,
     hostCoefficients: { ...scenario.hostCoefficients },
     ssdCoefficients: { ...scenario.ssdCoefficients },
+    calibration: scenario.calibration
+      ? {
+          ...scenario.calibration,
+          hostCoefficients: scenario.calibration.hostCoefficients
+            ? { ...scenario.calibration.hostCoefficients }
+            : undefined,
+          ssdCoefficients: scenario.calibration.ssdCoefficients
+            ? { ...scenario.calibration.ssdCoefficients }
+            : undefined,
+          warnings: scenario.calibration.warnings ? [...scenario.calibration.warnings] : undefined,
+        }
+      : undefined,
   }), []);
 
   // Apply dark/light mode with smooth transitions
@@ -188,6 +210,8 @@ export default function CRCWorkflowVisualizer() {
     const presetDraft = cloneEnterpriseScenario(ENTERPRISE_PHASE3_PRESET);
     setEnterpriseDraftScenario(presetDraft);
     setEnterpriseCommittedScenario(cloneEnterpriseScenario(ENTERPRISE_PHASE3_PRESET));
+    setCalibrationWarnings(presetDraft.calibration?.warnings ?? []);
+    setCalibrationImportError(null);
   }, [cloneEnterpriseScenario]);
 
   const updateEnterpriseScenario = useCallback((update: Partial<EnterpriseScenario>) => {
@@ -195,8 +219,42 @@ export default function CRCWorkflowVisualizer() {
     setEnterpriseDraftScenario((prev) => ({
       ...prev,
       ...update,
-      hostCoefficients: update.hostCoefficients ? { ...update.hostCoefficients } : prev.hostCoefficients,
-      ssdCoefficients: update.ssdCoefficients ? { ...update.ssdCoefficients } : prev.ssdCoefficients,
+      hostCoefficients: update.hostCoefficients
+        ? { ...prev.hostCoefficients, ...update.hostCoefficients }
+        : prev.hostCoefficients,
+      ssdCoefficients: update.ssdCoefficients
+        ? { ...prev.ssdCoefficients, ...update.ssdCoefficients }
+        : prev.ssdCoefficients,
+      calibration:
+        Object.prototype.hasOwnProperty.call(update, 'calibration')
+          ? update.calibration
+            ? {
+                ...(prev.calibration ?? {}),
+                ...update.calibration,
+                hostCoefficients: update.calibration.hostCoefficients
+                  ? {
+                      ...(prev.calibration?.hostCoefficients ?? {}),
+                      ...update.calibration.hostCoefficients,
+                    }
+                  : update.calibration.hostCoefficients === undefined
+                    ? prev.calibration?.hostCoefficients
+                    : undefined,
+                ssdCoefficients: update.calibration.ssdCoefficients
+                  ? {
+                      ...(prev.calibration?.ssdCoefficients ?? {}),
+                      ...update.calibration.ssdCoefficients,
+                    }
+                  : update.calibration.ssdCoefficients === undefined
+                    ? prev.calibration?.ssdCoefficients
+                    : undefined,
+                warnings: update.calibration.warnings
+                  ? [...update.calibration.warnings]
+                  : prev.calibration?.warnings
+                    ? [...prev.calibration.warnings]
+                    : undefined,
+              }
+            : undefined
+          : prev.calibration,
     }));
   }, []);
 
@@ -372,6 +430,22 @@ export default function CRCWorkflowVisualizer() {
         setEnterpriseDraftScenario(cloneEnterpriseScenario(normalised));
         setEnterpriseCommittedScenario(cloneEnterpriseScenario(normalised));
         setEnterpriseImportError(null);
+        setCalibrationWarnings(normalised.calibration?.warnings ?? []);
+        setCalibrationImportError(null);
+        if (normalised.calibration?.profileId) {
+          const profile = scenarioToCalibrationProfile(normalised, {
+            label: normalised.calibration.label ?? 'Imported profile',
+            source: 'imported',
+            id: normalised.calibration.profileId ?? undefined,
+          });
+          profile.warnings = normalised.calibration.warnings;
+          setCalibrationProfiles((prev) => {
+            if (prev.some((item) => item.id === profile.id)) {
+              return prev;
+            }
+            return [...prev, profile];
+          });
+        }
       } catch (error) {
         console.error('Unable to import scenario', error);
         setEnterpriseImportError('Unable to import scenario – please ensure this file was generated from the simulator.');
@@ -382,6 +456,167 @@ export default function CRCWorkflowVisualizer() {
     };
     reader.readAsText(file);
   }, [cloneEnterpriseScenario]);
+
+  const applyCalibrationProfile = useCallback(
+    (profile: CalibrationProfile, warnings: string[]) => {
+      const nextWarnings = warnings.length ? warnings : profile.warnings ?? [];
+      const profileWithWarnings: CalibrationProfile = nextWarnings.length
+        ? { ...profile, warnings: [...nextWarnings] }
+        : { ...profile, warnings: undefined };
+
+      setCalibrationImportError(null);
+      setCalibrationWarnings(nextWarnings);
+      setCalibrationProfiles((prev) => {
+        const existingIndex = prev.findIndex((item) => item.id === profileWithWarnings.id);
+        if (existingIndex >= 0) {
+          const next = [...prev];
+          next[existingIndex] = profileWithWarnings;
+          return next;
+        }
+        return [...prev, profileWithWarnings];
+      });
+
+      const currentUseDefaults = enterpriseDraftScenario.calibration?.profileId === profile.id
+        ? enterpriseDraftScenario.calibration?.useProfileDefaults ?? true
+        : true;
+      const calibration = profileToScenarioCalibration(profileWithWarnings, {
+        warnings: nextWarnings,
+        useProfileDefaults: currentUseDefaults,
+      });
+      const updates: Partial<EnterpriseScenario> = { calibration };
+      if (currentUseDefaults) {
+        if (typeof profileWithWarnings.muPer4kUs === 'number') {
+          updates.crcPer4kUs = profileWithWarnings.muPer4kUs;
+        }
+        if (typeof profileWithWarnings.sigmaPer4kUs === 'number') {
+          updates.crcSigmaPer4kUs = profileWithWarnings.sigmaPer4kUs;
+        }
+        if (typeof profileWithWarnings.nvmeLatencyUs === 'number') {
+          updates.nvmeLatencyUs = profileWithWarnings.nvmeLatencyUs;
+        }
+        if (typeof profileWithWarnings.queueDepth === 'number') {
+          updates.queueDepth = profileWithWarnings.queueDepth;
+        }
+        if (typeof profileWithWarnings.threads === 'number') {
+          updates.threads = profileWithWarnings.threads;
+        }
+        if (typeof profileWithWarnings.mdtsBytes === 'number') {
+          updates.mdtsBytes = profileWithWarnings.mdtsBytes;
+        }
+        if (profileWithWarnings.hostCoefficients) {
+          updates.hostCoefficients = {
+            ...enterpriseDraftScenario.hostCoefficients,
+            ...profileWithWarnings.hostCoefficients,
+          };
+        }
+        if (profileWithWarnings.ssdCoefficients) {
+          updates.ssdCoefficients = {
+            ...enterpriseDraftScenario.ssdCoefficients,
+            ...profileWithWarnings.ssdCoefficients,
+          };
+        }
+      }
+      updateEnterpriseScenario(updates);
+    },
+    [enterpriseDraftScenario, updateEnterpriseScenario],
+  );
+
+  const importCalibrationFromFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = typeof reader.result === 'string' ? reader.result : '';
+        const result = parseCalibrationInput(text);
+        applyCalibrationProfile(result.profile, result.warnings);
+      } catch (error) {
+        console.error('Unable to parse calibration input', error);
+        setCalibrationImportError((error as Error).message ?? 'Failed to parse calibration input.');
+      }
+    };
+    reader.onerror = () => {
+      setCalibrationImportError('Unable to read calibration file.');
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }, [applyCalibrationProfile]);
+
+  const promptCalibrationPaste = useCallback(() => {
+    const text = window.prompt('Paste CRC exerciser log or calibration profile JSON:');
+    if (!text) {
+      return;
+    }
+    try {
+      const result = parseCalibrationInput(text);
+      applyCalibrationProfile(result.profile, result.warnings);
+    } catch (error) {
+      console.error('Unable to parse calibration input', error);
+      setCalibrationImportError((error as Error).message ?? 'Failed to parse calibration input.');
+    }
+  }, [applyCalibrationProfile]);
+
+  const selectCalibrationProfile = useCallback(
+    (profileId: string | null) => {
+      if (!profileId) {
+        updateEnterpriseScenario({ calibration: undefined });
+        setCalibrationWarnings([]);
+        return;
+      }
+      const profile = calibrationProfiles.find((item) => item.id === profileId);
+      if (!profile) {
+        return;
+      }
+      applyCalibrationProfile(profile, profile.warnings ?? []);
+    },
+    [applyCalibrationProfile, calibrationProfiles, updateEnterpriseScenario],
+  );
+
+  const saveCalibrationProfile = useCallback(() => {
+    const suggested = enterpriseDraftScenario.calibration?.label ?? 'Manual profile';
+    const label = window.prompt('Name for calibration profile', suggested ?? 'Calibration profile');
+    if (!label) {
+      return;
+    }
+    const scenarioSnapshot = cloneEnterpriseScenario(enterpriseDraftScenario);
+    scenarioSnapshot.calibration = {
+      ...(scenarioSnapshot.calibration ?? {}),
+      label,
+    };
+    const profile = scenarioToCalibrationProfile(scenarioSnapshot, { label, source: 'manual' });
+    applyCalibrationProfile(profile, enterpriseDraftScenario.calibration?.warnings ?? []);
+  }, [applyCalibrationProfile, cloneEnterpriseScenario, enterpriseDraftScenario]);
+
+  const clearCalibrationProfile = useCallback(() => {
+    updateEnterpriseScenario({ calibration: undefined });
+    setCalibrationWarnings([]);
+    setCalibrationImportError(null);
+  }, [updateEnterpriseScenario]);
+
+  const toggleCalibrationDefaults = useCallback((value: boolean) => {
+    const calibration = enterpriseDraftScenario.calibration;
+    if (!calibration) {
+      return;
+    }
+    if (value && calibration.profileId) {
+      const profile = calibrationProfiles.find((item) => item.id === calibration.profileId);
+      if (profile) {
+        applyCalibrationProfile(profile, profile.warnings ?? calibration.warnings ?? []);
+        return;
+      }
+    }
+    updateEnterpriseScenario({ calibration: { ...calibration, useProfileDefaults: value } });
+  }, [applyCalibrationProfile, calibrationProfiles, enterpriseDraftScenario.calibration, updateEnterpriseScenario]);
+
+  const openCalibrationFileDialog = useCallback(() => {
+    if (calibrationFileInputRef.current) {
+      calibrationFileInputRef.current.value = '';
+      calibrationFileInputRef.current.click();
+    }
+  }, []);
 
   // Animation logic
   useEffect(() => {
@@ -869,6 +1104,17 @@ export default function CRCWorkflowVisualizer() {
               onPreset={loadEnterprisePreset}
               mode={enterpriseMode}
               onModeChange={setEnterpriseMode}
+              calibrationProfiles={calibrationProfiles}
+              onCalibrationPaste={promptCalibrationPaste}
+              onCalibrationImportClick={openCalibrationFileDialog}
+              onCalibrationFile={importCalibrationFromFile}
+              calibrationFileInputRef={calibrationFileInputRef}
+              onCalibrationProfileSelect={selectCalibrationProfile}
+              onCalibrationSave={saveCalibrationProfile}
+              onCalibrationClear={clearCalibrationProfile}
+              onCalibrationToggleDefaults={toggleCalibrationDefaults}
+              calibrationWarnings={calibrationWarnings}
+              calibrationImportError={calibrationImportError}
             />
           </motion.div>
         ) : state.viewMode !== 'ai' ? (
