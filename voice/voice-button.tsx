@@ -30,7 +30,7 @@ const AssistantButton = ({
         : "green",
     cursor: "pointer",
     zIndex: 99999,
-    position: "relative" as "relative",
+    position: "relative",
   };
 
   return (
