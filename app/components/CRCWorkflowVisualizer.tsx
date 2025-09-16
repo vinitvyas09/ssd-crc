@@ -18,7 +18,7 @@ import {
   cloneEnterpriseScenario as deepCloneEnterpriseScenario,
   ENTERPRISE_PRESETS,
 } from '@/lib/enterprise/phase3';
-import type { TimelineSegment } from '@/lib/enterprise/phase3';
+import type { TimelineSegment, ScenarioCalibration } from '@/lib/enterprise/phase3';
 import {
   runSweep,
   generateSweepAdvisor,
@@ -520,13 +520,18 @@ export default function CRCWorkflowVisualizer() {
     const useDefaults = calibration?.useProfileDefaults ?? true;
 
     const next = base;
-    let scenarioCalibration = calibration ? { ...calibration, warnings: [...warnings] } : undefined;
+    let scenarioCalibration: ScenarioCalibration | undefined = calibration
+      ? { ...calibration, warnings: [...warnings] }
+      : undefined;
 
     if (profile) {
       scenarioCalibration = profileToScenarioCalibration(profile, {
         warnings,
         useProfileDefaults: useDefaults,
       });
+      if (scenarioCalibration && !scenarioCalibration.warnings) {
+        scenarioCalibration.warnings = [...warnings];
+      }
       if (useDefaults) {
         if (typeof profile.muPer4kUs === 'number') {
           next.crcPer4kUs = profile.muPer4kUs;
