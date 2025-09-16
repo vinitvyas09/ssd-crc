@@ -8,7 +8,8 @@ import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram
 import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
 import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/EnhancedTooltip';
 import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
-import EnterpriseTab from '@/app/components/enterprise/EnterpriseTab';
+import { EnterpriseSidebar, EnterpriseResults, computeMdtsSegments } from '@/app/components/enterprise/EnterpriseTab';
+import { ENTERPRISE_PHASE1_PRESET, Phase1Scenario, simulatePhase1 } from '@/lib/enterprise/phase1';
 import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Voice } from '@/voice/voice-asst';
@@ -30,10 +31,21 @@ export default function CRCWorkflowVisualizer() {
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'throughput' | 'cpu'>('latency');
   const [currentStage, setCurrentStage] = useState<string>('Ready');
   const [animationProgress, setAnimationProgress] = useState(100); 
+  const [enterpriseDraftScenario, setEnterpriseDraftScenario] = useState<Phase1Scenario>(ENTERPRISE_PHASE1_PRESET);
+  const [enterpriseCommittedScenario, setEnterpriseCommittedScenario] = useState<Phase1Scenario>(ENTERPRISE_PHASE1_PRESET);
+  const [enterpriseShowCritical, setEnterpriseShowCritical] = useState(false);
+  const [enterpriseEventsOpen, setEnterpriseEventsOpen] = useState(true);
+  const [enterpriseImportError, setEnterpriseImportError] = useState<string | null>(null);
   
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dummyRef = useRef<SVGSVGElement>(null);
+  const enterpriseFileInputRef = useRef<HTMLInputElement>(null);
+
+  const cloneEnterpriseScenario = useCallback((scenario: Phase1Scenario): Phase1Scenario => ({
+    ...scenario,
+    hostCoefficients: { ...scenario.hostCoefficients },
+  }), []);
 
   // Apply dark/light mode with smooth transitions
   useEffect(() => {
@@ -69,6 +81,96 @@ export default function CRCWorkflowVisualizer() {
   const model = useMemo(() => buildWorkflowModel(state), [state]);
   const compareState = useMemo(() => ({ ...state, solution: compareSolution }), [state, compareSolution]);
   const compareModel = useMemo(() => buildWorkflowModel(compareState), [compareState]);
+  const enterpriseResult = useMemo(
+    () => simulatePhase1(enterpriseCommittedScenario),
+    [enterpriseCommittedScenario]
+  );
+  const enterpriseMdtsSegments = useMemo(
+    () => computeMdtsSegments(enterpriseDraftScenario),
+    [enterpriseDraftScenario]
+  );
+  const enterpriseMdtsClamp = enterpriseDraftScenario.chunkSizeKB * 1024 > enterpriseDraftScenario.mdtsBytes;
+
+  const runEnterpriseSimulation = useCallback(() => {
+    setEnterpriseImportError(null);
+    setEnterpriseCommittedScenario(cloneEnterpriseScenario(enterpriseDraftScenario));
+  }, [cloneEnterpriseScenario, enterpriseDraftScenario]);
+
+  const loadEnterprisePreset = useCallback(() => {
+    setEnterpriseImportError(null);
+    const presetDraft = cloneEnterpriseScenario(ENTERPRISE_PHASE1_PRESET);
+    setEnterpriseDraftScenario(presetDraft);
+    setEnterpriseCommittedScenario(cloneEnterpriseScenario(ENTERPRISE_PHASE1_PRESET));
+  }, [cloneEnterpriseScenario]);
+
+  const updateEnterpriseScenario = useCallback((update: Partial<Phase1Scenario>) => {
+    setEnterpriseImportError(null);
+    setEnterpriseDraftScenario((prev) => ({
+      ...prev,
+      ...update,
+      hostCoefficients: update.hostCoefficients ? { ...update.hostCoefficients } : prev.hostCoefficients,
+    }));
+  }, []);
+
+  const updateEnterpriseHostCoefficient = useCallback((key: 'c0' | 'c1' | 'c2', value: number) => {
+    setEnterpriseImportError(null);
+    setEnterpriseDraftScenario((prev) => ({
+      ...prev,
+      hostCoefficients: {
+        ...prev.hostCoefficients,
+        [key]: value,
+      },
+    }));
+  }, []);
+
+  const exportEnterpriseScenario = useCallback(() => {
+    const scenarioToExport = cloneEnterpriseScenario(enterpriseResult.scenario);
+    const blob = new Blob([JSON.stringify(scenarioToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `crc_enterprise_s2_${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      link.remove();
+    }, 0);
+  }, [cloneEnterpriseScenario, enterpriseResult.scenario]);
+
+  const importEnterpriseScenarioClick = useCallback(() => {
+    setEnterpriseImportError(null);
+    if (enterpriseFileInputRef.current) {
+      enterpriseFileInputRef.current.value = '';
+      enterpriseFileInputRef.current.click();
+    }
+  }, []);
+
+  const importEnterpriseScenario = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = typeof reader.result === 'string' ? reader.result : '';
+        const parsed = JSON.parse(text) as Phase1Scenario;
+        const normalised = simulatePhase1(parsed).scenario;
+        setEnterpriseDraftScenario(cloneEnterpriseScenario(normalised));
+        setEnterpriseCommittedScenario(cloneEnterpriseScenario(normalised));
+        setEnterpriseImportError(null);
+      } catch (error) {
+        console.error('Unable to import scenario', error);
+        setEnterpriseImportError('Unable to import scenario – please ensure this file was generated from the simulator.');
+      }
+    };
+    reader.onerror = () => {
+      setEnterpriseImportError('Unable to read scenario file.');
+    };
+    reader.readAsText(file);
+  }, [cloneEnterpriseScenario, simulatePhase1]);
 
   // Animation logic
   useEffect(() => {
@@ -540,8 +642,22 @@ export default function CRCWorkflowVisualizer() {
       </motion.header>
 
       <div className="flex h-[calc(100vh-68px)]">
-        {/* Control Panel - Hide when AI view is active */}
-        {state.viewMode !== 'ai' && (
+        {state.viewMode === 'enterprise' ? (
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="w-[320px] border-r border-[var(--grid)] bg-[var(--panel)] overflow-y-auto"
+          >
+            <EnterpriseSidebar
+              draftScenario={enterpriseDraftScenario}
+              mdtsSegments={enterpriseMdtsSegments}
+              mdtsClamp={enterpriseMdtsClamp}
+              onUpdateScenario={updateEnterpriseScenario}
+              onUpdateHostCoefficient={updateEnterpriseHostCoefficient}
+              onPreset={loadEnterprisePreset}
+            />
+          </motion.div>
+        ) : state.viewMode !== 'ai' ? (
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -549,7 +665,7 @@ export default function CRCWorkflowVisualizer() {
           >
             <ControlPanel state={state} setState={setState} />
           </motion.div>
-        )}
+        ) : null}
 
         {/* Main Visualization Area */}
         <div className="flex-1 flex flex-col">
@@ -821,7 +937,20 @@ export default function CRCWorkflowVisualizer() {
                   exit={{ opacity: 0, scale: 0.98 }}
                   className="h-full overflow-hidden"
                 >
-                  <EnterpriseTab />
+                  <EnterpriseResults
+                    result={enterpriseResult}
+                    draftScenario={enterpriseDraftScenario}
+                    showCritical={enterpriseShowCritical}
+                    onToggleCritical={() => setEnterpriseShowCritical((prev) => !prev)}
+                    eventsOpen={enterpriseEventsOpen}
+                    onToggleEvents={() => setEnterpriseEventsOpen((prev) => !prev)}
+                    onRun={runEnterpriseSimulation}
+                    onExport={exportEnterpriseScenario}
+                    onImportClick={importEnterpriseScenarioClick}
+                    importError={enterpriseImportError}
+                    fileInputRef={enterpriseFileInputRef}
+                    onImportFile={importEnterpriseScenario}
+                  />
                 </motion.div>
               ) : viewMode === 'single' && (
                 <motion.div
