@@ -223,9 +223,11 @@ Let:
   `V[t]: <mismatch>/<count> CRCs | <KB> in <msecs>: <KB/s> <CRCs/sec> <mismatch%> (Avg latency <usecs> per <bytes> <CRC|File>)`
 * Inputs to infer:
 
-  * **Per‑4096B CRC μ (µs)** and variance
+  * **Per-4096B CRC μ (µs)** and variance
   * **Command overheads** per Read/Read+ (submit+CQE handling)
   * **Queue interaction** under given `--queuedepth`, threads
+
+  Latest exerciser capture (4 KiB chunks, offload enabled) delivered ~11.7 k CRCs/s over 5 s with the tool reporting “Avg latency 85 µs”. A parallel `strace` showed synchronous `ioctl` completions averaging 134 µs (σ≈35 µs), which decomposes into ~110 µs of CRC execution plus ~12 µs submit/complete on each side. The baseline preset now reflects that split so queue models stay faithful once we add per-command NVMe latency.
 
 ### 7.2 Mapping (UI ↔ exerciser)
 
@@ -333,7 +335,7 @@ Let:
 * **QD**: 32 (cap 128)
 * **MDTS**: from Identify (or default 1 MiB if “unlimited” in caps)
 * **PCIe**: Gen4 x4 per SSD unless changed
-* **Service Time (per 4 KiB CRC)**: seeded from calibration (fallback μ=95 µs based on exerciser excerpts; adjust once calibrated)
+* **Service Time (per 4 KiB CRC)**: seeded from calibration (fallback μ=110 µs based on latest exerciser trace; adjust once calibrated)
 * **Aggregation Costs (starting points):**
 
   * Host `c0=5 µs, c1=0.4 µs/element per 4 KiB, c2=2 µs·log₂(x)`
