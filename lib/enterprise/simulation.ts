@@ -6,6 +6,7 @@ import type {
   EnterpriseSolution,
   EventLogEntry,
   HostCoefficients,
+  KPIConfidenceInterval,
   KPIConfidenceSet,
   QueueHeatmapLane,
   QueueHeatmapSample,
