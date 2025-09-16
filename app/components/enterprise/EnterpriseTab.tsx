@@ -197,7 +197,7 @@ export interface EnterpriseSidebarProps {
   onCalibrationPaste: () => void;
   onCalibrationImportClick: () => void;
   onCalibrationFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  calibrationFileInputRef: React.RefObject<HTMLInputElement>;
+  calibrationFileInputRef: React.MutableRefObject<HTMLInputElement | null>;
   onCalibrationProfileSelect: (profileId: string | null) => void;
   onCalibrationSave: () => void;
   onCalibrationClear: () => void;
@@ -754,7 +754,7 @@ export interface EnterpriseResultsProps {
   onExportResults: () => void;
   onImportClick: () => void;
   importError: string | null;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -795,7 +795,7 @@ interface EnterpriseCompareResultsProps {
   onExportResults: () => void;
   onImportClick: () => void;
   importError: string | null;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
   isRunning: boolean;
   progress: number;
@@ -1039,6 +1039,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
       ? 'Deterministic μ only'
       : `${draftScenario.serviceDistribution === 'lognormal' ? 'Lognormal' : 'Gamma'} μ=${draftScenario.crcPer4kUs.toFixed(0)} µs σ=${draftScenario.crcSigmaPer4kUs.toFixed(0)} µs`;
   const confidence = result.kpis.confidence;
+  const calibrationSummary = result.derived.calibration;
 
   const metrics = [
     { label: 'Latency p50', value: result.kpis.p50Us, formatter: formatMicros, margin: confidence?.p50?.margin },
