@@ -148,6 +148,28 @@ const segmentColor = (kind: TimelineSegmentKind): string => {
   }
 };
 
+// Collapse timeline segments when simulations produce tens of thousands of commands to keep DOM nodes bounded.
+const summariseSegmentsForRender = (
+  segments: TimelineSegment[],
+  threshold = 900,
+): Array<TimelineSegment & { aggregatedCount?: number }> => {
+  if (segments.length <= threshold) {
+    return segments.map((segment) => ({ ...segment, aggregatedCount: 1 }));
+  }
+  const stride = Math.ceil(segments.length / threshold);
+  const condensed: Array<TimelineSegment & { aggregatedCount?: number }> = [];
+  for (let index = 0; index < segments.length; index += stride) {
+    const head = segments[index];
+    const tail = segments[Math.min(index + stride - 1, segments.length - 1)];
+    condensed.push({
+      ...head,
+      endUs: tail.endUs,
+      aggregatedCount: Math.min(stride, segments.length - index),
+    });
+  }
+  return condensed;
+};
+
 const formatMicros = (value: number): string => {
   if (value >= 1000) {
     return `${(value / 1000).toFixed(2)} ms`;
@@ -180,6 +202,12 @@ const SOLUTION_META: Record<EnterpriseSolution, { label: string; summary: string
   },
 };
 
+const LATENCY_HELP_TEXT: Record<EnterpriseSolution, string> = {
+  s1: 'Latency picks the conservative path between pipeline fill and steady state, including any retry delays.',
+  s2: 'Latency = max SSD compute + Agg_host(x) + orchestration. Agg_host(x) = c0 + c1·x + c2·log₂(x).',
+  s3: 'Latency = max SSD compute + SSD aggregator lane + orchestration. Aggregator policy drives queueing on the chosen SSD.',
+};
+
 const AGGREGATOR_POLICY_META: Record<AggregatorPolicy, string> = {
   pinned: 'Pinned SSD',
   roundRobin: 'Round-robin',
@@ -198,7 +226,14 @@ export interface EnterpriseSidebarProps {
   onUpdateScenario: (update: Partial<EnterpriseScenario>) => void;
   onUpdateHostCoefficient: (key: 'c0' | 'c1' | 'c2', value: number) => void;
   onUpdateSsdCoefficient: (key: 'd0' | 'd1', value: number) => void;
-  onPreset: () => void;
+  presets: Array<{ id: string; label: string; summary: string; description?: string }>;
+  activePresetId: string | null;
+  onPresetSelect: (presetId: string) => void;
+  onMatchPreset: () => void;
+  matchPresetLabel: string;
+  matchPresetDescription?: string;
+  matchPresetDisabled: boolean;
+  matchPresetActive: boolean;
   mode: EnterpriseMode;
   onModeChange: (mode: EnterpriseMode) => void;
   sweepConfig: SweepConfig;
@@ -216,6 +251,8 @@ export interface EnterpriseSidebarProps {
   onCalibrationToggleDefaults: (value: boolean) => void;
   calibrationWarnings: string[];
   calibrationImportError: string | null;
+  scenarioWarnings: string[];
+  scenarioErrors: string[];
 }
 
 export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
@@ -225,7 +262,14 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   onUpdateScenario,
   onUpdateHostCoefficient,
   onUpdateSsdCoefficient,
-  onPreset,
+  presets,
+  activePresetId,
+  onPresetSelect,
+  onMatchPreset,
+  matchPresetLabel,
+  matchPresetDescription,
+  matchPresetDisabled,
+  matchPresetActive,
   mode,
   onModeChange,
   sweepConfig,
@@ -243,6 +287,8 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
   onCalibrationToggleDefaults,
   calibrationWarnings,
   calibrationImportError,
+  scenarioWarnings,
+  scenarioErrors,
 }) => {
   const calibration = draftScenario.calibration;
   const activeProfileLabel = calibration?.label ?? (calibration?.profileId ? 'Imported profile' : 'None');
@@ -773,6 +819,31 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
         />
       </Section>
 
+      <Section title="Guardrails">
+        {scenarioErrors.length === 0 && scenarioWarnings.length === 0 ? (
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-200">
+            No blocking issues detected for this scenario.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {scenarioErrors.length > 0 && (
+              <div className="space-y-1 rounded-lg border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200" role="alert">
+                {scenarioErrors.map((message) => (
+                  <div key={`error-${message}`}>{message}</div>
+                ))}
+              </div>
+            )}
+            {scenarioWarnings.length > 0 && (
+              <div className="space-y-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                {scenarioWarnings.map((message) => (
+                  <div key={`warn-${message}`}>{message}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Section>
+
       <Section title="Calibration">
         <div className="space-y-3 rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 text-xs text-zinc-300">
           <div className="flex items-center justify-between">
@@ -874,12 +945,57 @@ export const EnterpriseSidebar: React.FC<EnterpriseSidebarProps> = ({
       </Section>
 
       <Section title="Presets">
-        <button
-          onClick={onPreset}
-          className="w-full rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-300 transition hover:bg-sky-400/20"
-        >
-          Load Baseline 8× Gen4x4 (Deterministic)
-        </button>
+        <div className="space-y-2">
+          {presets.map((preset) => {
+            const active = activePresetId === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => onPresetSelect(preset.id)}
+                className={cn(
+                  'w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+                  active
+                    ? 'border-sky-500/60 bg-sky-500/10 text-sky-200'
+                    : 'border-zinc-800 text-zinc-400 hover:border-sky-500/40 hover:text-sky-200',
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-zinc-100">{preset.label}</span>
+                  {active && (
+                    <span className="text-[10px] uppercase tracking-wide text-sky-200">Active</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-zinc-500">{preset.summary}</div>
+                {preset.description && (
+                  <div className="text-[10px] text-zinc-600">{preset.description}</div>
+                )}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={onMatchPreset}
+            disabled={matchPresetDisabled}
+            className={cn(
+              'w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+              matchPresetActive
+                ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-200'
+                : 'border-zinc-800 text-zinc-400 hover:border-emerald-500/40 hover:text-emerald-200',
+              matchPresetDisabled && 'cursor-not-allowed opacity-60 hover:border-zinc-800 hover:text-zinc-400',
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-100">{matchPresetLabel}</span>
+              {matchPresetActive && (
+                <span className="text-[10px] uppercase tracking-wide text-emerald-200">Active</span>
+              )}
+            </div>
+            {matchPresetDescription && (
+              <div className="text-[10px] text-zinc-500">{matchPresetDescription}</div>
+            )}
+          </button>
+        </div>
       </Section>
     </div>
   );
@@ -900,6 +1016,7 @@ export interface EnterpriseResultsProps {
   onRunSweep?: () => void;
   onExportScenario: () => void;
   onExportResults: () => void;
+  onExportSnapshot: () => void;
   onExportSweep?: () => void;
   onImportClick: () => void;
   importError: string | null;
@@ -908,6 +1025,8 @@ export interface EnterpriseResultsProps {
   sweepRun?: SweepRun | null;
   sweepAdvisorHints?: SweepAdvisorHint[];
   sweepAdvisorEnabled?: boolean;
+  validationWarnings: string[];
+  validationErrors: string[];
 }
 
 const renderAggregationTree = (tree: AggregationTree): React.ReactNode => {
@@ -945,12 +1064,15 @@ interface EnterpriseCompareResultsProps {
   onRun: () => void;
   onExportScenario: () => void;
   onExportResults: () => void;
+  onExportSnapshot: () => void;
   onImportClick: () => void;
   importError: string | null;
   fileInputRef: React.MutableRefObject<HTMLInputElement | null>;
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
   isRunning: boolean;
   progress: number;
+  validationWarnings: string[];
+  validationErrors: string[];
 }
 
 const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
@@ -959,12 +1081,15 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
   onRun,
   onExportScenario,
   onExportResults,
+  onExportSnapshot,
   onImportClick,
   importError,
   fileInputRef,
   onImportFile,
   isRunning,
   progress,
+  validationWarnings,
+  validationErrors,
 }) => {
   const sorted = [...results].sort((a, b) => a.kpis.p99Us - b.kpis.p99Us);
   const bestP99 = sorted.length > 0 ? sorted[0].kpis.p99Us : 0;
@@ -999,6 +1124,12 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
             Export Results CSV
           </button>
           <button
+            onClick={onExportSnapshot}
+            className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Export Snapshot JSON
+          </button>
+          <button
             onClick={onImportClick}
             className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
           >
@@ -1008,12 +1139,13 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
           <button
             onClick={onRun}
             className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isRunning}
+            disabled={isRunning || validationErrors.length > 0}
+            title={validationErrors.length > 0 ? validationErrors[0] : undefined}
           >
             Run Comparison
           </button>
           {(isRunning || progress > 0) && (
-            <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <div className="flex items-center gap-2 text-[11px] text-zinc-400" aria-live="polite">
               <span>{isRunning ? `Running ${Math.min(100, Math.round(progress))}%` : `Done ${Math.min(100, Math.round(progress))}%`}</span>
               <div className="h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
                 <div
@@ -1029,6 +1161,25 @@ const EnterpriseCompareResults: React.FC<EnterpriseCompareResultsProps> = ({
       {importError && (
         <div className="border-b border-rose-500/60 bg-rose-500/10 px-4 py-2 text-xs text-rose-200">
           {importError}
+        </div>
+      )}
+
+      {(validationErrors.length > 0 || validationWarnings.length > 0) && (
+        <div className="space-y-2 border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-3 text-[11px]">
+          {validationErrors.length > 0 && (
+            <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-rose-200" role="alert">
+              {validationErrors.map((message) => (
+                <div key={`compare-error-${message}`}>{message}</div>
+              ))}
+            </div>
+          )}
+          {validationWarnings.length > 0 && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200">
+              {validationWarnings.map((message) => (
+                <div key={`compare-warning-${message}`}>{message}</div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1147,6 +1298,7 @@ interface EnterpriseSweepResultsProps {
   progress: number;
   onRun: () => void;
   onExportScenario: () => void;
+  onExportSnapshot: () => void;
   onExportSweep?: () => void;
   onImportClick: () => void;
   importError: string | null;
@@ -1154,6 +1306,8 @@ interface EnterpriseSweepResultsProps {
   onImportFile: (event: React.ChangeEvent<HTMLInputElement>) => void;
   advisorEnabled: boolean;
   advisorHints: SweepAdvisorHint[];
+  validationWarnings: string[];
+  validationErrors: string[];
 }
 
 const SWEEP_SOLUTION_COLORS: Record<EnterpriseSolution, string> = {
@@ -1171,6 +1325,7 @@ const EnterpriseSweepResults: React.FC<EnterpriseSweepResultsProps> = ({
   progress,
   onRun,
   onExportScenario,
+  onExportSnapshot,
   onExportSweep,
   onImportClick,
   importError,
@@ -1178,6 +1333,8 @@ const EnterpriseSweepResults: React.FC<EnterpriseSweepResultsProps> = ({
   onImportFile,
   advisorEnabled,
   advisorHints,
+  validationWarnings,
+  validationErrors,
 }) => {
   const points = sweepRun?.points ?? EMPTY_SWEEP_POINTS;
   const knobId = sweepRun?.config.knob ?? 'stripeWidth';
@@ -1311,6 +1468,12 @@ const EnterpriseSweepResults: React.FC<EnterpriseSweepResultsProps> = ({
           >
             Export Scenario JSON
           </button>
+          <button
+            onClick={onExportSnapshot}
+            className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Export Snapshot JSON
+          </button>
           {onExportSweep && (
             <button
               onClick={onExportSweep}
@@ -1328,12 +1491,13 @@ const EnterpriseSweepResults: React.FC<EnterpriseSweepResultsProps> = ({
           <button
             onClick={onRun}
             className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isRunning}
+            disabled={isRunning || validationErrors.length > 0}
+            title={validationErrors.length > 0 ? validationErrors[0] : undefined}
           >
             Run Sweep
           </button>
           {(isRunning || progress > 0) && (
-            <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <div className="flex items-center gap-2 text-[11px] text-zinc-400" aria-live="polite">
               <span>{isRunning ? `Running ${Math.min(100, Math.round(progress))}%` : `Done ${Math.min(100, Math.round(progress))}%`}</span>
               <div className="h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
                 <div className="h-full bg-sky-500 transition-all" style={{ width: `${Math.min(100, progress)}%` }} />
@@ -1356,6 +1520,25 @@ const EnterpriseSweepResults: React.FC<EnterpriseSweepResultsProps> = ({
         className="hidden"
         onChange={onImportFile}
       />
+
+      {(validationErrors.length > 0 || validationWarnings.length > 0) && (
+        <div className="space-y-2 border-b border-zinc-800/60 bg-zinc-900/40 px-4 py-3 text-[11px]">
+          {validationErrors.length > 0 && (
+            <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-rose-200" role="alert">
+              {validationErrors.map((message) => (
+                <div key={`sweep-error-${message}`}>{message}</div>
+              ))}
+            </div>
+          )}
+          {validationWarnings.length > 0 && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200">
+              {validationWarnings.map((message) => (
+                <div key={`sweep-warning-${message}`}>{message}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto">
         <div className="space-y-6 px-6 py-6">
@@ -1501,6 +1684,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
   onRunSweep,
   onExportScenario,
   onExportResults,
+  onExportSnapshot,
   onExportSweep,
   onImportClick,
   importError,
@@ -1573,6 +1757,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         onRun={onRun}
         onExportScenario={onExportScenario}
         onExportResults={onExportResults}
+        onExportSnapshot={onExportSnapshot}
         onImportClick={onImportClick}
         importError={importError}
         fileInputRef={fileInputRef}
@@ -1591,6 +1776,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
         progress={progress}
         onRun={onRunSweep ?? onRun}
         onExportScenario={onExportScenario}
+        onExportSnapshot={onExportSnapshot}
         onExportSweep={onExportSweep}
         onImportClick={onImportClick}
         importError={importError}
@@ -1666,6 +1852,12 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
             Export Results CSV
           </button>
           <button
+            onClick={onExportSnapshot}
+            className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Export Snapshot JSON
+          </button>
+          <button
             onClick={onImportClick}
             className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 transition hover:bg-zinc-800"
           >
@@ -1683,7 +1875,8 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
           <button
             onClick={onRun}
             className="rounded-full border border-sky-500/60 bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100 transition hover:bg-sky-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isRunning}
+            disabled={isRunning || validationErrors.length > 0}
+            title={validationErrors.length > 0 ? validationErrors[0] : undefined}
           >
             Run Simulation
           </button>
@@ -1701,6 +1894,25 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
       {importError && (
         <div className="border-b border-rose-500/60 bg-rose-500/10 px-4 py-2 text-xs text-rose-200">
           {importError}
+        </div>
+      )}
+
+      {(validationErrors.length > 0 || validationWarnings.length > 0) && (
+        <div className="space-y-2 border-b border-zinc-800/60 bg-zinc-900/40 px-6 py-3 text-[11px]">
+          {validationErrors.length > 0 && (
+            <div className="rounded-md border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-rose-200" role="alert">
+              {validationErrors.map((message) => (
+                <div key={`single-error-${message}`}>{message}</div>
+              ))}
+            </div>
+          )}
+          {validationWarnings.length > 0 && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200">
+              {validationWarnings.map((message) => (
+                <div key={`single-warning-${message}`}>{message}</div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1748,13 +1960,20 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
             ))}
           </div>
 
+          <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/30 px-4 py-3 text-xs text-zinc-400">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">How latency is computed</div>
+            <p className="mt-1">
+              {LATENCY_HELP_TEXT[solution]}
+            </p>
+          </div>
+
           <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30 relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-zinc-800/60 px-6 py-3">
               <div className="text-sm font-semibold">Timeline</div>
               <div className="text-[11px] text-zinc-500">Horizon {formatMicros(total)}</div>
             </div>
             {(isRunning || progress > 0) && (
-              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-zinc-950/70 backdrop-blur-sm">
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-zinc-950/70 backdrop-blur-sm" aria-live="polite">
                 <div className="text-sm font-semibold text-sky-200">
                   {isRunning ? 'Running enterprise simulation…' : 'Simulation complete'}
                 </div>
@@ -1772,6 +1991,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
                 {result.lanes.map((lane) => {
                   const emphasise = showCritical ? lane.isCritical : true;
                   const laneTotal = lane.totalUs || total;
+                  const segmentsToRender = summariseSegmentsForRender(lane.segments);
                   return (
                     <div key={lane.id} className="space-y-1">
                       <div className="flex items-center justify-between text-[11px] text-zinc-500">
@@ -1779,12 +1999,16 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
                         <span>{formatMicros(laneTotal)}</span>
                       </div>
                       <div className="relative h-8 rounded-lg border border-zinc-800 bg-zinc-950/60">
-                        {lane.segments.map((segment) => {
+                        {segmentsToRender.map((segment, index) => {
                           const width = ((segment.endUs - segment.startUs) / laneTotal) * 100;
                           const left = (segment.startUs / laneTotal) * 100;
+                          const durationUs = segment.endUs - segment.startUs;
+                          const aggregationHint = segment.aggregatedCount && segment.aggregatedCount > 1
+                            ? ` · ${segment.aggregatedCount} segments aggregated`
+                            : '';
                           return (
                             <div
-                              key={`${lane.id}-${segment.startUs}-${segment.endUs}-${segment.kind}-${segment.commandIndex}`}
+                              key={`${lane.id}-${segment.startUs}-${segment.endUs}-${segment.kind}-${index}`}
                               className={cn(
                                 'absolute top-1/2 flex -translate-y-1/2 items-center justify-center rounded px-2 text-[10px] transition-opacity',
                                 segmentColor(segment.kind as TimelineSegmentKind),
@@ -1794,7 +2018,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
                                 width: `${Math.max(width, 0.6)}%`,
                                 left: `${left}%`,
                               }}
-                              title={`${segment.label} (${formatMicros(segment.endUs - segment.startUs)})`}
+                              title={`${segment.label} (${formatMicros(durationUs)})${aggregationHint}`}
                             >
                               <span className="truncate">{segment.label}</span>
                             </div>
@@ -2073,6 +2297,7 @@ export const EnterpriseResults: React.FC<EnterpriseResultsProps> = ({
               <button
                 onClick={onToggleEvents}
                 className="text-[11px] font-medium text-sky-300 hover:text-sky-200"
+                aria-expanded={eventsOpen}
               >
                 {eventsOpen ? 'Hide details' : 'Show details'}
               </button>
