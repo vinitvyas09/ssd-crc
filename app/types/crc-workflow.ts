@@ -1,6 +1,6 @@
 export type SolutionType = 's1' | 's2' | 's3';
 export type MessageStatus = 'ok' | 'err' | 'warn';
-export type ViewMode = 'timing' | 'distribution' | 'ai';
+export type ViewMode = 'timing' | 'distribution' | 'ai' | 'enterprise';
 
 export interface Participant {
   id: string;

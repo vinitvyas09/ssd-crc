@@ -8,6 +8,7 @@ import AnimatedSVGDiagram from '@/app/components/crc-workflow/AnimatedSVGDiagram
 import SVGDiagram from '@/app/components/crc-workflow/SVGDiagram';
 import EnhancedTooltip, { TooltipData } from '@/app/components/crc-workflow/EnhancedTooltip';
 import DataDistributionView from '@/app/components/crc-workflow/DataDistributionView';
+import EnterpriseTab from '@/app/components/enterprise/EnterpriseTab';
 import { Chat } from '@/app/components/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Voice } from '@/voice/voice-asst';
@@ -447,6 +448,20 @@ export default function CRCWorkflowVisualizer() {
                 </div>
               </div>
             </motion.button>
+            <motion.button
+              onClick={() => setState({ ...state, viewMode: 'enterprise' })}
+              className={`view-tab ${state.viewMode === 'enterprise' ? 'active bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--muted)] hover:text-[var(--fg)] bg-[var(--panel-2)]'} px-4 py-2 rounded-lg text-sm font-medium transition-all`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🏢</span>
+                <div className="text-left">
+                  <div className="text-xs font-semibold">Enterprise</div>
+                  <div className="text-[10px] opacity-75">Simulator</div>
+                </div>
+              </div>
+            </motion.button>
           </div>
 
           {/* Playback Controls */}
@@ -797,6 +812,16 @@ export default function CRCWorkflowVisualizer() {
                   className="h-full overflow-auto"
                 >
                   <DataDistributionView state={state} />
+                </motion.div>
+              ) : state.viewMode === 'enterprise' ? (
+                <motion.div
+                  key="enterprise"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  className="h-full overflow-hidden"
+                >
+                  <EnterpriseTab />
                 </motion.div>
               ) : viewMode === 'single' && (
                 <motion.div
