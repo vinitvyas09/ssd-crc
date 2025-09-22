@@ -1662,6 +1662,20 @@ export default function CRCWorkflowVisualizer() {
           {/* Main View Mode Tabs - Centered with better labels */}
           <div className="flex items-center gap-2 absolute left-1/2 transform -translate-x-1/2">
             <motion.button
+              onClick={() => setState({ ...state, viewMode: 'enterprise' })}
+              className={`view-tab ${state.viewMode === 'enterprise' ? 'active bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--muted)] hover:text-[var(--fg)] bg-[var(--panel-2)]'} px-4 py-2 rounded-lg text-sm font-medium transition-all`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🏢</span>
+                <div className="text-left">
+                  <div className="text-xs font-semibold">Enterprise</div>
+                  <div className="text-[10px] opacity-75">Simulator</div>
+                </div>
+              </div>
+            </motion.button>
+            <motion.button
               onClick={() => setState({ ...state, viewMode: 'timing' })}
               className={`view-tab ${state.viewMode === 'timing' ? 'active bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--muted)] hover:text-[var(--fg)] bg-[var(--panel-2)]'} px-4 py-2 rounded-lg text-sm font-medium transition-all`}
               whileHover={{ scale: 1.05 }}
@@ -1700,20 +1714,6 @@ export default function CRCWorkflowVisualizer() {
                 <div className="text-left">
                   <div className="text-xs font-semibold">AI Assistant</div>
                   <div className="text-[10px] opacity-75">Chat & Voice</div>
-                </div>
-              </div>
-            </motion.button>
-            <motion.button
-              onClick={() => setState({ ...state, viewMode: 'enterprise' })}
-              className={`view-tab ${state.viewMode === 'enterprise' ? 'active bg-[var(--accent)] text-white shadow-lg' : 'text-[var(--muted)] hover:text-[var(--fg)] bg-[var(--panel-2)]'} px-4 py-2 rounded-lg text-sm font-medium transition-all`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-base">🏢</span>
-                <div className="text-left">
-                  <div className="text-xs font-semibold">Enterprise</div>
-                  <div className="text-[10px] opacity-75">Simulator</div>
                 </div>
               </div>
             </motion.button>
