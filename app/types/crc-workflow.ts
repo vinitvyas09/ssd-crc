@@ -76,7 +76,7 @@ export interface TooltipState {
 
 export const initialState: WorkflowState = {
   solution: 's2',
-  viewMode: 'timing',
+  viewMode: 'enterprise',
   W: 6,
   segments: 1,
   chunkBytes: 4096,
